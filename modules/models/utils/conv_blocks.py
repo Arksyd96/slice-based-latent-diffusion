@@ -10,7 +10,7 @@ from monai.networks.layers import Pool, Conv
 from monai.networks.layers.utils import get_act_layer, get_norm_layer, get_dropout_layer
 from monai.utils.misc import ensure_tuple_rep
 
-from medical_diffusion.models.utils.attention_blocks import Attention, zero_module
+from modules.models.utils.attention_blocks import Attention, zero_module
 
 def save_add(*args):
     args = [arg for arg in args if arg is not None]

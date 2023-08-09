@@ -5,10 +5,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torchvision.utils import save_image
 
-from medical_diffusion.models.utils.conv_blocks import DownBlock, UpBlock, BasicBlock, BasicResBlock, UnetResBlock, UnetBasicBlock
-from medical_diffusion.loss.gan_losses import hinge_d_loss
-from medical_diffusion.loss.perceivers import LPIPS
-from medical_diffusion.models.model_base import BasicModel, VeryBasicModel
+from modules.models.utils.conv_blocks import DownBlock, UpBlock, BasicBlock, BasicResBlock, UnetResBlock, UnetBasicBlock
+from modules.loss.gan_losses import hinge_d_loss
+from modules.loss.perceivers import LPIPS
+from modules.models.model_base import BasicModel, VeryBasicModel
 
 from pytorch_msssim import SSIM, ssim
 
@@ -636,7 +636,6 @@ class VAE(BasicModel):
         lr_scheduler_kwargs={},
         loss = torch.nn.L1Loss,
         loss_kwargs={'reduction': 'none'},
-
         sample_every_n_steps = 1000
 
     ):
@@ -746,6 +745,7 @@ class VAE(BasicModel):
             BasicBlock(spatial_dims, hid_chs[i], out_channels, 1, zero_conv=True) 
             for i in range(1, deep_supervision + 1)
         ])
+        
         # self.logvar_ver = nn.ParameterList([
         #     nn.Parameter(torch.zeros(size=()) )
         #     for _ in range(1, deep_supervision+1)
@@ -788,7 +788,7 @@ class VAE(BasicModel):
         # -------- Decoder -----------
         out_hor = []
         h = self.inc_dec(z_q, emb=emb)
-        for i in range(len(self.decoders)-1, -1, -1):
+        for i in range(len(self.decoders) - 1, -1, -1):
             out_hor.append(self.outc_ver[i](h)) if i < len(self.outc_ver) else None 
             h = self.decoders[i](h, emb=emb)
         out = self.outc(h)
@@ -796,15 +796,17 @@ class VAE(BasicModel):
         return out, out_hor[::-1], emb_loss 
     
     def perception_loss(self, pred, target, depth=0):
-        if (self.perceiver is not None) and (depth<2):
+        if (self.perceiver is not None) and (depth < 2):
             self.perceiver.eval()
             return self.perceiver(pred, target) * self.perceptual_loss_weight
         else:
             return 0 
     
     def ssim_loss(self, pred, target):
-        return 1-ssim(((pred+1)/2).clamp(0,1), (target.type(pred.dtype)+1)/2, data_range=1, size_average=False, 
-                        nonnegative_ssim=True).reshape(-1, *[1]*(pred.ndim-1))
+        return 1 - ssim(
+            ((pred + 1) / 2).clamp(0, 1), 
+            (target.type(pred.dtype) + 1) / 2, data_range=1, size_average=False, nonnegative_ssim=True).reshape(-1, *(1,) * (pred.ndim - 1)
+        )
     
     def rec_loss(self, pred, pred_vertical, target):
         interpolation_mode = 'nearest-exact'
@@ -855,7 +857,7 @@ class VAE(BasicModel):
             log_step = self.global_step // self.sample_every_n_steps
             path_out = Path(self.logger.save_dir)/'images'
             path_out.mkdir(parents=True, exist_ok=True)
-            # for 3D images use depth as batch :[D, C, H, W], never show more than 16+16 =32 images 
+            # for 3D images use depth as batch :[D, C, H, W], never show more than 16 + 16 = 32 images 
             def depth2batch(image):
                 return (image if image.ndim<5 else torch.swapaxes(image[0], 0, 1))
             images = torch.cat([depth2batch(img)[:16] for img in (x, pred)]) 

@@ -195,8 +195,6 @@ class LinearTransformer(nn.Module):
         return out # [B, C', *]
 
 
-
-
 class BasicTransformerBlock(nn.Module):
     def __init__(
         self, 

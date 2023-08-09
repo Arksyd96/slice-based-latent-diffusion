@@ -18,6 +18,8 @@
 !/docs/Makefile
 
 /build/
+/data/
+/runs/
 
 /lightning_logs/
 
