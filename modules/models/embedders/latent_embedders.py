@@ -659,7 +659,7 @@ class VAE(BasicModel):
 
         # -------- Time/Position embedding ---------
         if time_embedder is not None:
-            self.time_embedder=time_embedder(**time_embedder_kwargs)
+            self.time_embedder = time_embedder(**time_embedder_kwargs)
             time_emb_dim = self.time_embedder.emb_dim
         else:
             self.time_embedder = time_emb_dim = None 
@@ -813,24 +813,31 @@ class VAE(BasicModel):
 
         # Loss
         loss = 0
-        rec_loss = self.loss_fct(pred, target) + self.perception_loss(pred, target) + self.ssim_loss(pred, target)
+        
+        # perception loss only on the images and not the masks
+        rec_loss = self.loss_fct(pred, target) + self.perception_loss(pred[:, 0, None], target[:, 0, None]) + self.ssim_loss(pred, target)
         # rec_loss = rec_loss/ torch.exp(self.logvar) + self.logvar # Note this is include in Stable-Diffusion but logvar is not used in optimizer 
-        loss += torch.sum(rec_loss)/pred.shape[0]  
+        loss += torch.sum(rec_loss) / pred.shape[0]  
         
 
         for i, pred_i in enumerate(pred_vertical): 
             target_i = F.interpolate(target, size=pred_i.shape[2:], mode=interpolation_mode, align_corners=None)  
-            rec_loss_i = self.loss_fct(pred_i, target_i)+self.perception_loss(pred_i, target_i)+self.ssim_loss(pred_i, target_i)
+            rec_loss_i  = self.loss_fct(pred_i, target_i) + \
+                        self.perception_loss(pred_i[:, 0, None], target_i[:, 0, None])   + \
+                        self.ssim_loss(pred_i, target_i)
             # rec_loss_i = rec_loss_i/ torch.exp(self.logvar_ver[i]) + self.logvar_ver[i] 
-            loss += torch.sum(rec_loss_i)/pred.shape[0]  
+            loss += torch.sum(rec_loss_i) / pred.shape[0]  
 
         return loss 
 
-    def _step(self, batch: dict, batch_idx: int, state: str, step: int, optimizer_idx:int):
+    def _step(self, batch, batch_idx, state, step, optimizer_idx):
         # ------------------------- Get Source/Target ---------------------------
         x, t = batch
         x, t = x.type(torch.float32), t.type(torch.long)
         target = x
+        
+        if self.time_embedder is None:
+            t = None
         
         # ------------------------- Run Model ---------------------------
         pred, pred_vertical, emb_loss = self(x, timestep=t)
@@ -849,19 +856,9 @@ class VAE(BasicModel):
 
         # ----------------- Log Scalars ----------------------
         for metric_name, metric_val in logging_dict.items():
-            self.log(f"{state}/{metric_name}", metric_val, batch_size=x.shape[0], on_step=True, on_epoch=True)   
-             
-
-        # ----------------- Save Image ------------------------------
-        if self.global_step != 0 and self.global_step % self.sample_every_n_steps == 0:
-            log_step = self.global_step // self.sample_every_n_steps
-            path_out = Path(self.logger.save_dir)/'images'
-            path_out.mkdir(parents=True, exist_ok=True)
-            # for 3D images use depth as batch :[D, C, H, W], never show more than 16 + 16 = 32 images 
-            def depth2batch(image):
-                return (image if image.ndim<5 else torch.swapaxes(image[0], 0, 1))
-            images = torch.cat([depth2batch(img)[:16] for img in (x, pred)]) 
-            save_image(images, path_out/f'sample_{log_step}.png', nrow=x.shape[0], normalize=True)
+            self.log('{}/{}'.format(state, metric_name), metric_val, prog_bar=True,
+                on_step=True, on_epoch=True, sync_dist=True, logger=True
+            )
     
         return loss
 

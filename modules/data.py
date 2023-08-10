@@ -59,6 +59,12 @@ class BRATSDataset(torch.utils.data.Dataset):
     def __getitem__(self, index):
         return [self.transform(d[index]) if i == 0 else d[index] for i, d in enumerate(self.data)]
     
+    def sample(self, n, transform=None):
+        """ sampling randomly n samples from the dataset, apply or not the transform"""
+        transform = self.transform if transform is not None else lambda x: x
+        idx = np.random.choice(len(self), n)
+        return [transform(d[idx]) if i == 0 else d[idx] for i, d in enumerate(self.data)]
+    
 
 class BRATSDataModule(LightningDataModule):
     def __init__(
@@ -99,12 +105,12 @@ class BRATSDataModule(LightningDataModule):
     def setup(self, stage=None):
         data = torch.from_numpy(np.load(self.data_dir, allow_pickle=True))
 
-        data = data[:, 0, None] ##
+        # data = data[:, 0, None] ##
         
         # normalize to [0-1] (volume-wise normalization)
         norm = lambda x: (x - x.min()) / (x.max() - x.min())
         for idx in range(data.shape[0]):
-            data[idx] = norm(data[idx])
+            data[idx, 0] = norm(data[idx, 0])
 
         if self.slice_wise:
             # keeping track on slice positions for positional embedding
