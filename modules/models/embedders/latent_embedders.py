@@ -619,7 +619,7 @@ class VAE(BasicModel):
         strides =    [ 1,  2,   2,   2],
         norm_name = ("GROUP", {'num_groups':8, "affine": True}),
         act_name=("Swish", {}),
-        time_embedder=TimeEmbbeding,
+        time_embedder=None,
         time_embedder_kwargs={},
         dropout=None,
         use_res_block=True,
@@ -732,14 +732,14 @@ class VAE(BasicModel):
                 emb_channels=time_emb_dim,
                 skip_channels=0
             )
-            for i in range(self.depth-1)
+            for i in range(self.depth - 1)
         ])
 
         # --------------- Out-Convolution ----------------
         self.outc = BasicBlock(spatial_dims, hid_chs[0], out_channels, 1, zero_conv=True)
         
-        if isinstance(deep_supervision, bool):
-            deep_supervision = self.depth - 1 if deep_supervision else 0 
+        # if isinstance(deep_supervision, bool):
+        deep_supervision = self.depth - 1 if deep_supervision else 0 
             
         self.outc_ver = nn.ModuleList([
             BasicBlock(spatial_dims, hid_chs[i], out_channels, 1, zero_conv=True) 
@@ -822,9 +822,7 @@ class VAE(BasicModel):
 
         for i, pred_i in enumerate(pred_vertical): 
             target_i = F.interpolate(target, size=pred_i.shape[2:], mode=interpolation_mode, align_corners=None)  
-            rec_loss_i  = self.loss_fct(pred_i, target_i) + \
-                        self.perception_loss(pred_i[:, 0, None], target_i[:, 0, None])   + \
-                        self.ssim_loss(pred_i, target_i)
+            rec_loss_i  = self.loss_fct(pred_i, target_i) + self.perception_loss(pred_i[:, 0, None], target_i[:, 0, None]) + self.ssim_loss(pred_i, target_i)
             # rec_loss_i = rec_loss_i/ torch.exp(self.logvar_ver[i]) + self.logvar_ver[i] 
             loss += torch.sum(rec_loss_i) / pred.shape[0]  
 
@@ -833,7 +831,6 @@ class VAE(BasicModel):
     def _step(self, batch, batch_idx, state, step, optimizer_idx):
         # ------------------------- Get Source/Target ---------------------------
         x, t = batch
-        x, t = x.type(torch.float32), t.type(torch.long)
         target = x
         
         if self.time_embedder is None:

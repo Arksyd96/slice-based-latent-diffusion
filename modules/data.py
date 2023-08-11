@@ -4,6 +4,7 @@ from torch import nn
 from torchvision import transforms as T
 from pytorch_lightning import LightningDataModule
 from sklearn.model_selection import train_test_split
+from tqdm import tqdm
 
 class IdentityDataset(torch.utils.data.Dataset):
     """
@@ -33,7 +34,6 @@ class BRATSDataset(torch.utils.data.Dataset):
         vertical_flip   = None, 
         random_crop_size = None,
         rotation        = None,
-        normalize       = True,
         dtype           = torch.float32
     ):
         super().__init__()
@@ -47,7 +47,6 @@ class BRATSDataset(torch.utils.data.Dataset):
                 T.RandomCrop(random_crop_size) if random_crop_size is not None else nn.Identity(),
                 T.RandomRotation(rotation) if rotation is not None else nn.Identity(),
                 T.ConvertImageDtype(dtype),
-                T.Normalize(mean=0.5, std=0.5) if normalize else nn.Identity
                 # WARNING: mean and std are not the target values but rather the values to subtract and divide by: [0, 1] -> [0-0.5, 1-0.5]/0.5 -> [-1, 1]
             ])
         else:
@@ -91,7 +90,6 @@ class BRATSDataModule(LightningDataModule):
             "vertical_flip": vertical_flip, 
             "random_crop_size": random_crop_size,
             "rotation": rotation,
-            "normalize": normalize,
             "dtype": dtype
         }
         self.data_dir = data_dir
@@ -105,12 +103,13 @@ class BRATSDataModule(LightningDataModule):
     def setup(self, stage=None):
         data = torch.from_numpy(np.load(self.data_dir, allow_pickle=True))
 
-        # data = data[:, 0, None] ##
+        # data = data[:, 0, None, :, :, 32, None] ##
         
         # normalize to [0-1] (volume-wise normalization)
-        norm = lambda x: (x - x.min()) / (x.max() - x.min())
-        for idx in range(data.shape[0]):
+        norm = lambda data: (2 * data - data.min() - data.max()) / (data.max() - data.min())
+        for idx in tqdm(range(data.shape[0]), desc="Normalizing data", position=0, leave=True):
             data[idx, 0] = norm(data[idx, 0])
+            data[idx, 1] = torch.where(data[idx, 1] == 0, -1, data[idx, 1]) # labels [0, 1] => [-1, 1] for simplicity
 
         if self.slice_wise:
             # keeping track on slice positions for positional embedding
@@ -121,6 +120,20 @@ class BRATSDataModule(LightningDataModule):
             # merging depth and batch dimension
             data = data.permute(0, 4, 1, 2, 3)
             data = data.reshape(-1, C, W, H)
+
+            # reducing number of empty slices
+            empty_slices_map = data[:, 0].mean(dim=(1, 2)) == -1
+            empty_slices_num = empty_slices_map.sum().item()
+            num_to_set_false = int(empty_slices_num * 0.1)
+
+            # randomly select 10% of the True values and set them to False (so we remove 90%)
+            indices = torch.where(empty_slices_map == True)[0]
+            indices_to_set_false = torch.randperm(empty_slices_num)[:num_to_set_false]
+            empty_slices_map[indices[indices_to_set_false]] = False
+
+            # removing selected empty slices
+            data = data[~empty_slices_map]
+            slice_positions = slice_positions[~empty_slices_map]
 
             # train val split
             train_images, val_images, train_positions, val_positions = train_test_split(
@@ -142,9 +155,14 @@ class BRATSDataModule(LightningDataModule):
         DataModule setup complete.
         Number of training samples: {}
         Number of validation samples: {}
+        Data shape: {}
+        Maximum: {}, Minimum: {}
         """.format(
             len(self.train_dataset),
-            len(self.val_dataset)
+            len(self.val_dataset),
+            data.shape,
+            data.max(),
+            data.min()
         )
 
         if self.verbose: print(log)

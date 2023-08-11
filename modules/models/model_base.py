@@ -26,11 +26,11 @@ class VeryBasicModel(pl.LightningModule):
 
     def training_step(self, batch: dict, batch_idx: int, optimizer_idx:int = 0 ):
         self._step_train += 1 # =self.global_step
-        return self._step(batch, batch_idx, "train")
+        return self._step(batch, batch_idx, "train", batch_idx, optimizer_idx)
 
     def validation_step(self, batch: dict, batch_idx: int, optimizer_idx:int = 0):
         self._step_val += 1
-        return self._step(batch, batch_idx, "val", self._step_val, optimizer_idx )
+        return self._step(batch, batch_idx, "val", self._step_val, optimizer_idx)
 
     def test_step(self, batch: dict, batch_idx: int, optimizer_idx:int = 0):
         self._step_test += 1
