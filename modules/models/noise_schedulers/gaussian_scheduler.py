@@ -1,9 +1,7 @@
-
 import torch 
 import torch.nn.functional as F
 
-
-from medical_diffusion.models.noise_schedulers import BasicNoiseScheduler
+from modules.models.noise_schedulers import BasicNoiseScheduler
 
 class GaussianNoiseScheduler(BasicNoiseScheduler):
     def __init__(

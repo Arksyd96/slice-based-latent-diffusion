@@ -3,14 +3,9 @@ import torch
 import torch.nn as nn 
 from monai.networks.blocks import UnetOutBlock
 
-from medical_diffusion.models.utils.conv_blocks import BasicBlock, UpBlock, DownBlock, UnetBasicBlock, UnetResBlock, save_add, BasicDown, BasicUp, SequentialEmb
-from medical_diffusion.models.embedders import TimeEmbbeding
-from medical_diffusion.models.utils.attention_blocks import Attention, zero_module
-
-
-
-
-
+from modules.models.utils.conv_blocks import BasicBlock, UpBlock, DownBlock, UnetBasicBlock, UnetResBlock, save_add, BasicDown, BasicUp, SequentialEmb
+from modules.models.embedders import TimeEmbbeding
+from modules.models.utils.attention_blocks import Attention, zero_module
 
 class UNet(nn.Module):
 

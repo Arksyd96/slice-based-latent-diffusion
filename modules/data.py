@@ -78,7 +78,6 @@ class BRATSDataModule(LightningDataModule):
         vertical_flip = None, 
         rotation = None,
         random_crop_size = None,
-        normalize = True,
         dtype = torch.float32,
         slice_wise = False,
         verbose = True
@@ -111,15 +110,16 @@ class BRATSDataModule(LightningDataModule):
             data[idx, 0] = norm(data[idx, 0])
             data[idx, 1] = torch.where(data[idx, 1] == 0, -1, data[idx, 1]) # labels [0, 1] => [-1, 1] for simplicity
 
+        data = data.permute(0, 4, 1, 2, 3) # depth first
+
         if self.slice_wise:
+            # merging depth and batch dimension
+            data = data.reshape(-1, C, W, H)
+
             # keeping track on slice positions for positional embedding
             N, C, W, H, D = data.shape
             slice_positions = torch.arange(D)[None, :].repeat(N, 1)
             slice_positions = slice_positions.flatten()
-
-            # merging depth and batch dimension
-            data = data.permute(0, 4, 1, 2, 3)
-            data = data.reshape(-1, C, W, H)
 
             # reducing number of empty slices
             empty_slices_map = data[:, 0].mean(dim=(1, 2)) == -1
@@ -138,7 +138,7 @@ class BRATSDataModule(LightningDataModule):
             # train val split
             train_images, val_images, train_positions, val_positions = train_test_split(
                 data, slice_positions, train_size=self.train_ratio, random_state=42, stratify=slice_positions
-            )
+            ) if self.train_ratio < 1 else (data, [], slice_positions, [])
 
             self.train_dataset = BRATSDataset(train_images, train_positions, **self.dataset_kwargs)
             self.val_dataset = BRATSDataset(val_images, val_positions)
@@ -146,7 +146,7 @@ class BRATSDataModule(LightningDataModule):
         else:
             train_images, val_images = train_test_split(
                 data, train_size=self.train_ratio, random_state=42
-            )
+            ) if self.train_ratio < 1 else (data, [])
 
             self.train_dataset = BRATSDataset(train_images, **self.dataset_kwargs)
             self.val_dataset = BRATSDataset(val_images)

@@ -14,20 +14,24 @@ import torchio as tio
 
 from pytorch_lightning.loggers import wandb as wandb_logger
 
-from medical_diffusion.data.datamodules import SimpleDataModule
-from medical_diffusion.data.datasets import AIROGSDataset, MSIvsMSS_2_Dataset, CheXpert_2_Dataset
-from medical_diffusion.models.pipelines import DiffusionPipeline
-from medical_diffusion.models.estimators import UNet
-from medical_diffusion.external.stable_diffusion.unet_openai import UNetModel
-from medical_diffusion.models.noise_schedulers import GaussianNoiseScheduler
-from medical_diffusion.models.embedders import LabelEmbedder, TimeEmbbeding
-from medical_diffusion.models.embedders.latent_embedders import VAE, VAEGAN, VQVAE, VQGAN
+# from modules.data.datamodules import SimpleDataModule
+from modules.models.pipelines import DiffusionPipeline
+from modules.models.estimators import UNet
+from modules.external.stable_diffusion.unet_openai import UNetModel
+from modules.models.noise_schedulers import GaussianNoiseScheduler
+from modules.models.embedders import TimeEmbbeding
+from modules.models.embedders.latent_embedders import VAE
+from modules.loggers import ImageGenerationLogger
 
 import torch.multiprocessing
 torch.multiprocessing.set_sharing_strategy('file_system')
 
+from modules.data import BRATSDataModule
+
 import os
 os.environ['WANDB_API_KEY'] = 'bdc8857f9d6f7010cff35bcdc0ae9413e05c75e1'
+
+torch.set_float32_matmul_precision('high')
 
 class IdentityDataset(torch.utils.data.Dataset):
     def __init__(self, *data):
@@ -42,33 +46,47 @@ class IdentityDataset(torch.utils.data.Dataset):
 
 if __name__ == "__main__":
     
-    data = np.load('./brats_preprocessed.npy', allow_pickle=True)
-    data = data[:, 0, None]
-    data = data.transpose(0, 4, 1, 2, 3) # depth first
+    # data = np.load('./brats_preprocessed.npy', allow_pickle=True)
+    # data = data[:, 0, None]
+    # data = data.transpose(0, 4, 1, 2, 3) # depth first
     
-    norm = lambda data: (2 * data - data.min() - data.max()) / (data.max() - data.min())
-    for idx in range(data.shape[0]):
-        data[idx] = norm(data[idx]).astype(np.float32)
+    # norm = lambda data: (2 * data - data.min() - data.max()) / (data.max() - data.min())
+    # for idx in range(data.shape[0]):
+    #     data[idx] = norm(data[idx]).astype(np.float32)
 
         
-    # train test split
-    tr_ds = IdentityDataset(data)
+    # # train test split
+    # tr_ds = IdentityDataset(data)
   
-    dm = SimpleDataModule(
-        ds_train = tr_ds,
-        batch_size=16, 
-        num_workers=32,
-        pin_memory=True
-    ) 
-    
+    # dm = SimpleDataModule(
+    #     ds_train = tr_ds,
+    #     batch_size=16, 
+    #     num_workers=32,
+    #     pin_memory=True
+    # ) 
+
+    datamodule = BRATSDataModule(
+        data_dir        = './data/brats_preprocessed.npy',
+        train_ratio     = 1.0,
+        batch_size      = 8,
+        num_workers     = 32,
+        shuffle         = True,
+        # horizontal_flip = 0.5,
+        vertical_flip   = 0.5,
+        # rotation        = (0, 90),
+        # random_crop_size = (96, 96),
+        dtype           = torch.float32,
+        slice_wise      = False
+    )
+
     current_time = datetime.now().strftime("%Y_%m_%d_%H%M%S")
     path_run_dir = Path.cwd() / 'runs' / str(current_time)
     path_run_dir.mkdir(parents=True, exist_ok=True)
     accelerator = 'gpu' if torch.cuda.is_available() else 'cpu'
     
     logger = wandb_logger.WandbLogger(
-        project='slice-baed-latent-diffusion', 
-        name='diffusion-training',
+        project='slice-based-latent-diffusion', 
+        name='diffusion-training (3D avec mask)',
         save_dir=path_run_dir
         # id='24hyhi7b',
         # resume="must"
@@ -91,9 +109,9 @@ if __name__ == "__main__":
 
     noise_estimator = UNet
     noise_estimator_kwargs = {
-        'in_ch':2, 
-        'out_ch':2, 
-        'spatial_dims':2,
+        'in_ch': 8, 
+        'out_ch': 8, 
+        'spatial_dims': 2,
         'hid_chs':  [256, 256, 512, 1024],
         'kernel_sizes':[3, 3, 3, 3],
         'strides':     [1, 2, 2, 2],
@@ -113,80 +131,73 @@ if __name__ == "__main__":
         'timesteps': 1000,
         'beta_start': 0.002, # 0.0001, 0.0015
         'beta_end': 0.02, # 0.01, 0.0195
-        'schedule_strategy': 'scaled_linear'
+        'schedule_strategy': 'cosine'
     }
     
     # ------------ Initialize Latent Space  ------------
-    # latent_embedder = None 
-    # latent_embedder = VQVAE
     latent_embedder = VAE
-    latent_embedder_checkpoint = './runs/2023_08_08_195632 (AE no emb)/last.ckpt'
+    latent_embedder_checkpoint = './runs/first_stage-2023_08_11_230709 (best AE so far + mask)/epoch=489-step=807030.ckpt'
 
     latent_embedder = latent_embedder.load_from_checkpoint(latent_embedder_checkpoint, time_embedder=None)
    
     # ------------ Initialize Pipeline ------------
-    pipeline = DiffusionPipeline(
-        noise_estimator=noise_estimator, 
-        noise_estimator_kwargs=noise_estimator_kwargs,
-        noise_scheduler=noise_scheduler, 
-        noise_scheduler_kwargs = noise_scheduler_kwargs,
-        latent_embedder=latent_embedder,
-        # latent_embedder_checkpoint = latent_embedder_checkpoint,
-        estimator_objective='x_T',
-        estimate_variance=False, 
-        use_self_conditioning=False, 
-        use_ema=False,
-        classifier_free_guidance_dropout=0.0, # Disable during training by setting to 0
-        do_input_centering=False,
-        clip_x0=False,
-        sample_every_n_steps=500
+    pipeline = DiffusionPipeline.load_from_checkpoint(
+        './runs/2023_08_16_113818 (continuity)/epoch=999-step=63000.ckpt', 
+        latent_embedder=latent_embedder
     )
+
+    # pipeline = DiffusionPipeline(
+    #     noise_estimator=noise_estimator, 
+    #     noise_estimator_kwargs=noise_estimator_kwargs,
+    #     noise_scheduler=noise_scheduler, 
+    #     noise_scheduler_kwargs = noise_scheduler_kwargs,
+    #     latent_embedder=latent_embedder,
+    #     # latent_embedder_checkpoint = latent_embedder_checkpoint,
+    #     estimator_objective='x_T',
+    #     estimate_variance=False, 
+    #     use_self_conditioning=False, 
+    #     use_ema=False,
+    #     classifier_free_guidance_dropout=0.0, # Disable during training by setting to 0
+    #     do_input_centering=False,
+    #     clip_x0=False
+    # )
     
     # pipeline_old = pipeline.load_from_checkpoint('runs/2022_11_27_085654_chest_diffusion/last.ckpt')
     # pipeline.noise_estimator.load_state_dict(pipeline_old.noise_estimator.state_dict(), strict=True)
 
     # -------------- Training Initialization ---------------
-    to_monitor = "train/loss"  # "pl/val_loss" 
-    min_max = "min"
-    save_and_sample_every = 100
-
-    early_stopping = EarlyStopping(
-        monitor=to_monitor,
-        min_delta=0.0, # minimum change in the monitored quantity to qualify as an improvement
-        patience=30, # number of checks with no improvement
-        mode=min_max
-    )
     checkpointing = ModelCheckpoint(
         dirpath=str(path_run_dir), # dirpath
-        monitor=to_monitor,
-        every_n_train_steps=save_and_sample_every,
+        monitor=None,
+        every_n_epochs=50,
         save_last=True,
-        save_top_k=1,
-        mode=min_max,
+        save_top_k=1
+    )
+
+    image_logger = ImageGenerationLogger(
+        noise_shape=(8, 128, 128),
+        save_dir=str(path_run_dir),
+        save_every_n_epochs=10,
+        save=True
     )
 
     trainer = Trainer(
         accelerator='gpu',
         logger=logger,
-        # devices=[0],
-        # precision=16,
-        # amp_backend='apex',
-        # amp_level='O2',
+        # devices=4,
+        # nodes=2,
+        precision=32,
         # gradient_clip_val=0.5,
-        callbacks=[checkpointing],
-        # callbacks=[checkpointing, early_stopping],
-        # enable_checkpointing=True,
-        check_val_every_n_epoch=1,
         log_every_n_steps=1, 
-        # limit_train_batches=1000,
-        limit_val_batches=0, # 0 = disable validation - Note: Early Stopping no longer available 
+        # limit_train_batches=1000, 
         min_epochs=100,
-        max_epochs=1001,
+        max_epochs=3000,
         num_sanity_val_steps=0,
+        callbacks=[checkpointing, image_logger]
     )
     
     # ---------------- Execute Training ----------------
-    trainer.fit(pipeline, datamodule=dm)
+    trainer.fit(pipeline, datamodule=datamodule)
 
     # ------------- Save path to best model -------------
     pipeline.save_best_checkpoint(trainer.logger.save_dir, checkpointing.best_model_path)

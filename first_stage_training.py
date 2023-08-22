@@ -31,7 +31,7 @@ if __name__ == "__main__":
     # ------------ Load Data ----------------
     datamodule = BRATSDataModule(
         data_dir        = './data/brats_preprocessed.npy',
-        train_ratio     = 0.95,
+        train_ratio     = 0.9,
         batch_size      = 32,
         num_workers     = 32,
         shuffle         = True,
@@ -56,7 +56,8 @@ if __name__ == "__main__":
         deep_supervision = False,
         use_attention   = 'none', # ['none', 'none', 'none', 'spatial'],
         loss            = torch.nn.MSELoss,
-        embedding_loss_weight = 1e-6
+        embedding_loss_weight = 1e-6,
+        optimizer_kwargs = {'lr': 1e-5}
     )
 
     # model = VAEGAN(

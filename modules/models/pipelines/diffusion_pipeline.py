@@ -6,9 +6,9 @@ import torch
 import torch.nn.functional as F 
 from torchvision.utils import save_image 
 
-from medical_diffusion.models import BasicModel
-from medical_diffusion.utils.train_utils import EMAModel
-from medical_diffusion.utils.math_utils import kl_gaussians
+from modules.models import BasicModel
+from modules.utils.train_utils import EMAModel
+from modules.utils.math_utils import kl_gaussians
 
 class DiffusionPipeline(BasicModel):
     def __init__(self, 
@@ -67,11 +67,10 @@ class DiffusionPipeline(BasicModel):
 
         self.save_hyperparameters(ignore=['latent_embedder'])
 
-    def _step(self, batch: dict, batch_idx: int, state: str):
+    def _step(self, batch: dict, batch_idx: int, state: str, step: int, optimizer_idx:int):
         results = {}
         x_0 = batch[0]
-        x_0 = x_0.type(torch.float32)
-        # condition = batch.get('target', None)
+        # x_0 = x_0.type(torch.float32)
         condition = None 
 
         # at this point, batch should be of shape Bx64x1x128x128
@@ -90,7 +89,8 @@ class DiffusionPipeline(BasicModel):
                     batch.append(volume)
             
             x_0 = torch.stack(batch) # => Bx2x64x16x16
-            x_0 = x_0.reshape(x_0.shape[0], 2, 128, 128)
+            x_0 = x_0.reshape(x_0.shape[0], 8, 128, 128)
+
         
         if self.do_input_centering:
             x_0 = 2 * x_0 - 1 # [0, 1] -> [-1, 1]
@@ -125,7 +125,7 @@ class DiffusionPipeline(BasicModel):
                     raise NotImplementedError(f"Option estimator_target={self.estimator_objective} not supported.")
             
         # Classifier free guidance 
-        if torch.rand(1)<self.classifier_free_guidance_dropout:
+        if torch.rand(1) < self.classifier_free_guidance_dropout:
             condition = None 
        
         # Run Denoise 
@@ -148,12 +148,12 @@ class DiffusionPipeline(BasicModel):
         # ------------------------- Compute Loss ---------------------------
         interpolation_mode = 'area'
         loss = 0
-        weights = [1/2**i for i in range(1+len(pred_vertical))] # horizontal (equal) + vertical (reducing with every step down)
+        weights = [1 / 2 ** i for i in range(1 + len(pred_vertical))] # horizontal (equal) + vertical (reducing with every step down)
         tot_weight = sum(weights)
-        weights = [w/tot_weight for w in weights]
+        weights = [w / tot_weight for w in weights]
 
         # ----------------- MSE/L1, ... ----------------------
-        loss += self.loss_fct(pred, target)*weights[0]
+        loss += self.loss_fct(pred, target) * weights[0]
 
         # ----------------- Variance Loss --------------
         if self.estimate_variance:
@@ -206,39 +206,36 @@ class DiffusionPipeline(BasicModel):
             self.log(f"{state}/{metric_name}", metric_val, batch_size=x_0.shape[0], on_step=True, on_epoch=True)           
         
         
-        #------------------ Log Image -----------------------
-        if (self.global_step + 1) % self.sample_every_n_steps == 0:
-            dataformats =  'NHWC' if x_0.ndim == 5 else 'HWC'
-            def norm(x):
-                return (x-x.min())/(x.max()-x.min())
+        # #------------------ Log Image -----------------------
+        # if (self.global_step + 1) % self.sample_every_n_steps == 0:
+        #     dataformats =  'NHWC' if x_0.ndim == 5 else 'HWC'
+        #     def norm(x):
+        #         return (x-x.min())/(x.max()-x.min())
 
-            sample_cond = condition[0:self.num_samples] if condition is not None else None
-            sample_img = self.sample(num_samples=1, img_size=x_0.shape[1:], condition=sample_cond).detach()
-            # => 1, 2, 128, 128
+        #     sample_cond = condition[0:self.num_samples] if condition is not None else None
+        #     sample_img = self.sample(num_samples=1, img_size=x_0.shape[1:], condition=sample_cond).detach()
+        #     # => 1, 8, 128, 128
 
-            sample_img = sample_img.reshape(1, 2, 64, 16, 16)
-            sample_img = sample_img.squeeze(0).permute(1, 0, 2, 3) # (1x2x64x16x16) => (64x2x16x16)
+        #     sample_img = sample_img.reshape(1, 8, 64, 16, 16).squeeze(0)
+        #     sample_img = sample_img.permute(1, 0, 2, 3) # (8x64x16x16) => (64x8x16x16)
 
-            # decoding
-            if self.latent_embedder is not None:
-                positions = torch.arange(sample_img.shape[0], device=self.latent_embedder.device)
-                sample_img = self.latent_embedder.decode(sample_img, emb=pos_emb)
+        #     # decoding
+        #     if self.latent_embedder is not None:
+        #         # positions = torch.arange(sample_img.shape[0], device=self.latent_embedder.device)
+        #         sample_img = self.latent_embedder.decode(sample_img, emb=None)
+        #         # => 64x2x128x128
+
+        #     path_out = Path(self.logger.save_dir)/'images'
+        #     path_out.mkdir(parents=True, exist_ok=True)
+        #     # for 3D images use depth as batch :[D, C, H, W], never show more than 32 images 
+        #     def depth2batch(image):
+        #         return (image if image.ndim < 5 else torch.swapaxes(image[0], 0, 1))
+        #     images = depth2batch(sample_img)[::4]
+        #     save_image(images[:, 0, None], path_out/f'sample_images_{self.global_step}.png', normalize=True)
+        #     save_image(images[:, 1, None], path_out/f'sample_masks_{self.global_step}.png', normalize=True)
+
+            # logging to wandb
             
-            # self.logger.experiment.add_images("predict_img", norm(torch.moveaxis(pred[0,-1:], 0,-1)), global_step=self.current_epoch, dataformats=dataformats) 
-            # self.logger.experiment.add_images("target_img", norm(torch.moveaxis(target[0,-1:], 0,-1)), global_step=self.current_epoch, dataformats=dataformats) 
-            
-            # self.logger.experiment.add_images("source_img", norm(torch.moveaxis(x_0[0,-1:], 0,-1)), global_step=log_step, dataformats=dataformats) 
-            # self.logger.experiment.add_images("sample_img", norm(torch.moveaxis(sample_img[0,-1:], 0,-1)), global_step=log_step, dataformats=dataformats) 
-            
-            path_out = Path(self.logger.save_dir)/'images'
-            path_out.mkdir(parents=True, exist_ok=True)
-            # for 3D images use depth as batch :[D, C, H, W], never show more than 32 images 
-            def depth2batch(image):
-                return (image if image.ndim < 5 else torch.swapaxes(image[0], 0, 1))
-            images = depth2batch(sample_img)[::4]
-            save_image(images, path_out/f'sample_{self.global_step}.png', normalize=True)
-            
-        
         return loss
 
     
