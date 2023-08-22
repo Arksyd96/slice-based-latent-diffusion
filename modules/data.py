@@ -80,6 +80,7 @@ class BRATSDataModule(LightningDataModule):
         random_crop_size = None,
         dtype = torch.float32,
         slice_wise = False,
+        include_seg = True,
         verbose = True
     ):
         super().__init__()
@@ -98,42 +99,48 @@ class BRATSDataModule(LightningDataModule):
         self.slice_wise = slice_wise
         self.train_ratio = train_ratio
         self.verbose = verbose
+        self.include_seg = include_seg
 
     def setup(self, stage=None):
         data = torch.from_numpy(np.load(self.data_dir, allow_pickle=True))
 
         # data = data[:, 0, None, :, :, 32, None] ##
+        if not self.include_seg:
+            data = data[:, 0, None]
         
         # normalize to [0-1] (volume-wise normalization)
         norm = lambda data: (2 * data - data.min() - data.max()) / (data.max() - data.min())
         for idx in tqdm(range(data.shape[0]), desc="Normalizing data", position=0, leave=True):
             data[idx, 0] = norm(data[idx, 0])
-            data[idx, 1] = torch.where(data[idx, 1] == 0, -1, data[idx, 1]) # labels [0, 1] => [-1, 1] for simplicity
+            if self.include_seg:
+                data[idx, 1] = torch.where(data[idx, 1] == 0, -1, data[idx, 1]) # labels [0, 1] => [-1, 1] for simplicity
 
         data = data.permute(0, 4, 1, 2, 3) # depth first
 
         if self.slice_wise:
+            N, D, C, W, H = data.shape
+
             # merging depth and batch dimension
-            data = data.reshape(-1, C, W, H)
+            data = data.reshape(N * D, C, W, H)
 
             # keeping track on slice positions for positional embedding
-            N, C, W, H, D = data.shape
             slice_positions = torch.arange(D)[None, :].repeat(N, 1)
             slice_positions = slice_positions.flatten()
 
-            # reducing number of empty slices
-            empty_slices_map = data[:, 0].mean(dim=(1, 2)) == -1
-            empty_slices_num = empty_slices_map.sum().item()
-            num_to_set_false = int(empty_slices_num * 0.1)
+            # reducing number of empty slices only if included seg
+            if self.include_seg:
+                empty_slices_map = data[:, 0].mean(dim=(1, 2)) == -1 # only first channel (CARE!!)
+                empty_slices_num = empty_slices_map.sum().item()
+                num_to_set_false = int(empty_slices_num * 0.1)
 
-            # randomly select 10% of the True values and set them to False (so we remove 90%)
-            indices = torch.where(empty_slices_map == True)[0]
-            indices_to_set_false = torch.randperm(empty_slices_num)[:num_to_set_false]
-            empty_slices_map[indices[indices_to_set_false]] = False
+                # randomly select 10% of the True values and set them to False (so we remove 90%)
+                indices = torch.where(empty_slices_map == True)[0]
+                indices_to_set_false = torch.randperm(empty_slices_num)[:num_to_set_false]
+                empty_slices_map[indices[indices_to_set_false]] = False
 
-            # removing selected empty slices
-            data = data[~empty_slices_map]
-            slice_positions = slice_positions[~empty_slices_map]
+                # removing selected empty slices
+                data = data[~empty_slices_map]
+                slice_positions = slice_positions[~empty_slices_map]
 
             # train val split
             train_images, val_images, train_positions, val_positions = train_test_split(

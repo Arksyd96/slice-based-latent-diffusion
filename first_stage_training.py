@@ -9,7 +9,7 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import wandb as wandb_logger
 
 from modules.data import BRATSDataModule
-from modules.models.embedders.latent_embedders import VAE, VAEGAN
+from modules.models.embedders.latent_embedders import VAE
 from modules.loggers import ImageReconstructionLogger
 
 os.environ['WANDB_API_KEY'] = 'bdc8857f9d6f7010cff35bcdc0ae9413e05c75e1'
@@ -33,25 +33,26 @@ if __name__ == "__main__":
         data_dir        = './data/brats_preprocessed.npy',
         train_ratio     = 0.9,
         batch_size      = 32,
-        num_workers     = 32,
+        num_workers     = 16,
         shuffle         = True,
         horizontal_flip = 0.5,
         vertical_flip   = 0.5,
         rotation        = (0, 90),
         # random_crop_size = (96, 96),
         dtype           = torch.float32,
-        slice_wise      = True
+        slice_wise      = True,
+        include_seg     = False
     )
 
     # ------------ Initialize Model ------------
     model = VAE(
-        in_channels     = 2, 
-        out_channels    = 2, 
-        emb_channels    = 8,
+        in_channels     = 1, 
+        out_channels    = 1, 
+        emb_channels    = 1,
         spatial_dims    = 2, # 2D or 3D
-        hid_chs         = [64, 128, 256 + 128, 512], 
+        hid_chs         = [128, 256, 512, 1024], 
         kernel_sizes    = [3, 3, 3, 3],
-        strides         = [1, 2, 2, 2],
+        strides         = [1, 2, 2, 1],
         time_embedder   = None,
         deep_supervision = False,
         use_attention   = 'none', # ['none', 'none', 'none', 'spatial'],
@@ -90,14 +91,12 @@ if __name__ == "__main__":
     )
         
     trainer = Trainer(
-        accelerator = 'gpu',
         logger      = logger,
+        strategy    = 'ddp',
+        accelerator = 'gpu',
         precision   = 32,
-        # devices     = 4,
-        # nodes       = 2,  
-        # precision=16,
-        # amp_backend='apex',
-        # amp_level='O2',
+        devices     = 4,
+        nodes       = 2,  
         # gradient_clip_val=0.5,
         default_root_dir = save_dir,
         enable_checkpointing = True,
