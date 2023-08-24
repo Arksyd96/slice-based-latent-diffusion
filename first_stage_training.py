@@ -80,7 +80,7 @@ if __name__ == "__main__":
     # -------------- Training Initialization ---------------
     checkpointing = ModelCheckpoint(
         dirpath     = save_dir, # dirpath
-        monitor     = 'val/loss' # 'val/ae_loss_epoch',
+        monitor     = 'val/loss', # 'val/ae_loss_epoch',
         every_n_epochs = 10,
         save_last   = True,
         save_top_k  = 1,
