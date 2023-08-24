@@ -38,7 +38,7 @@ class ImageReconstructionLogger(pl.Callback):
                     x, pos = batch
                     x, pos = x.to(pl_module.device, torch.float32), pos.to(pl_module.device, torch.long)
 
-                    if pl_module.vqvae.time_embedder is None:
+                    if pl_module.time_embedder is None:
                         pos = None
                     
                     x_hat, _, _ = pl_module(x, timestep=pos)
