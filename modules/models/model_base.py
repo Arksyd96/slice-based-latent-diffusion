@@ -3,10 +3,8 @@ from pathlib import Path
 import json
 
 import torch 
-import torch.nn as nn
 import torch.nn.functional as F
 import pytorch_lightning as pl
-# from pytorch_lightning.utilities.migration import pl_legacy_patch
 
 class VeryBasicModel(pl.LightningModule):
     def __init__(self):
@@ -17,26 +15,25 @@ class VeryBasicModel(pl.LightningModule):
         self._step_test = 0
         self.validation_step_outputs = []
 
-
     def forward(self, x_in):
         raise NotImplementedError
 
-    def _step(self, batch: dict, batch_idx: int, state: str, step: int, optimizer_idx:int):
+    def _step(self, batch, batch_idx, split, step):
         raise NotImplementedError
 
-    def training_step(self, batch: dict, batch_idx: int, optimizer_idx:int = 0 ):
-        self._step_train += 1 # =self.global_step
-        return self._step(batch, batch_idx, "train", batch_idx, optimizer_idx)
+    def training_step(self, batch, batch_idx):
+        self._step_train += 1
+        return self._step(batch, batch_idx, "train", self._step_train)
 
-    def validation_step(self, batch: dict, batch_idx: int, optimizer_idx:int = 0):
+    def validation_step(self, batch, batch_idx):
         self._step_val += 1
-        return self._step(batch, batch_idx, "val", self._step_val, optimizer_idx)
+        return self._step(batch, batch_idx, "val", self._step_val)
 
-    def test_step(self, batch: dict, batch_idx: int, optimizer_idx:int = 0):
+    def test_step(self, batch, batch_idx):
         self._step_test += 1
-        return self._step(batch, batch_idx, "test", self._step_test, optimizer_idx)
+        return self._step(batch, batch_idx, "test", self._step_test)
 
-    def _epoch_end(self, outputs: list, state: str):
+    def _epoch_end(self, outputs, split):
         return 
     
     def on_training_epoch_end(self, outputs):

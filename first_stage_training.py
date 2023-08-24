@@ -9,7 +9,7 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import wandb as wandb_logger
 
 from modules.data import BRATSDataModule
-from modules.models.embedders.latent_embedders import VAE
+from modules.models.embedders.latent_embedders import VAE, VAEGAN
 from modules.loggers import ImageReconstructionLogger
 
 os.environ['WANDB_API_KEY'] = 'bdc8857f9d6f7010cff35bcdc0ae9413e05c75e1'
@@ -24,7 +24,7 @@ if __name__ == "__main__":
     # --------------- Logger --------------------
     logger = wandb_logger.WandbLogger(
         project = 'slice-based-latent-diffusion', 
-        name    = 'first-stage',
+        name    = 'first-stage VAE-GAN',
         save_dir = save_dir
     )
 
@@ -48,36 +48,39 @@ if __name__ == "__main__":
     model = VAE(
         in_channels     = 1, 
         out_channels    = 1, 
-        emb_channels    = 1,
+        emb_channels    = 3,
         spatial_dims    = 2, # 2D or 3D
         hid_chs         = [128, 256, 512, 1024], 
         kernel_sizes    = [3, 3, 3, 3],
-        strides         = [1, 2, 2, 1],
+        strides         = [1, 2, 2, 2],
         time_embedder   = None,
         deep_supervision = False,
-        use_attention   = 'none', # ['none', 'none', 'none', 'spatial'],
+        use_attention   = ['none', 'none', 'none', 'spatial'],
         loss            = torch.nn.MSELoss,
         embedding_loss_weight = 1e-6,
         optimizer_kwargs = {'lr': 1e-5}
     )
 
     # model = VAEGAN(
-    #     in_channels=3, 
-    #     out_channels=3, 
-    #     emb_channels=8,
-    #     spatial_dims=2,
-    #     hid_chs =    [ 64, 128, 256,  512],
-    #     deep_supervision=1,
-    #     use_attention= 'none',
-    #     start_gan_train_step=-1,
-    #     embedding_loss_weight=1e-6
+    #     in_channels     = 1, 
+    #     out_channels    = 1, 
+    #     emb_channels    = 2,
+    #     spatial_dims    = 2,
+    #     hid_chs         = [64, 128, 256, 512],
+    #     kernel_sizes    = [3, 3, 3, 3],
+    #     strides         = [1, 2, 2, 2],
+    #     time_embedder   = None,
+    #     deep_supervision = False,
+    #     use_attention   = ['none', 'none', 'none', 'spatial'],
+    #     start_gan_train_step = 30001,
+    #     embedding_loss_weight = 1e-6
     # )
     
 
     # -------------- Training Initialization ---------------
     checkpointing = ModelCheckpoint(
         dirpath     = save_dir, # dirpath
-        monitor     = 'val/loss',
+        monitor     = 'val/loss' # 'val/ae_loss_epoch',
         every_n_epochs = 10,
         save_last   = True,
         save_top_k  = 1,
@@ -93,17 +96,17 @@ if __name__ == "__main__":
     trainer = Trainer(
         logger      = logger,
         strategy    = 'ddp',
-        accelerator = 'gpu',
-        precision   = 32,
         devices     = 4,
-        num_nodes   = 1,  
+        num_nodes   = 2,  
+        precision   = 32,
+        accelerator = 'gpu',
         # gradient_clip_val=0.5,
         default_root_dir = save_dir,
         enable_checkpointing = True,
         check_val_every_n_epoch = 1,
         log_every_n_steps = 1, 
-        min_epochs  = 100,
-        max_epochs  = 1000,
+        min_epochs = 100,
+        max_epochs = 1000,
         num_sanity_val_steps = 0,
         callbacks=[checkpointing, image_logger]
     )
