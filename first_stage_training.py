@@ -24,7 +24,7 @@ if __name__ == "__main__":
     # --------------- Logger --------------------
     logger = wandb_logger.WandbLogger(
         project = 'slice-based-latent-diffusion', 
-        name    = 'first-stage VAE-GAN',
+        name    = 'first-stage VAE 4 ch',
         save_dir = save_dir
     )
 
@@ -50,12 +50,12 @@ if __name__ == "__main__":
         out_channels    = 1, 
         emb_channels    = 3,
         spatial_dims    = 2, # 2D or 3D
-        hid_chs         = [128, 256, 512, 1024], 
+        hid_chs         = [128, 256, 256 + 128, 512], 
         kernel_sizes    = [3, 3, 3, 3],
         strides         = [1, 2, 2, 2],
         time_embedder   = None,
         deep_supervision = False,
-        use_attention   = ['none', 'none', 'none', 'spatial'],
+        use_attention   = 'none', # ['none', 'none', 'none', 'spatial'],
         loss            = torch.nn.MSELoss,
         embedding_loss_weight = 1e-6,
         optimizer_kwargs = {'lr': 1e-5}
