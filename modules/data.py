@@ -20,6 +20,18 @@ class IdentityDataset(torch.utils.data.Dataset):
         return [d[index] for d in self.data]
     
 
+def normalize(input_data, norm='centered-norm'):
+    assert norm in ['centered-norm', 'z-score', 'min-max'], "Invalid normalization method"
+
+    if norm == 'centered-norm':
+        norm = lambda x: (2 * x - x.min() - x.max()) / (x.max() - x.min())
+    elif norm == 'z-score':
+        norm = lambda x: (x - x.mean()) / x.std()
+    elif norm == 'min-max':
+        norm = lambda x: (x - x.min()) / (x.max() - x.min())
+    return norm(input_data)
+
+
 class BRATSDataset(torch.utils.data.Dataset):
     """
         Images always as first argument, labels and other variables as last
@@ -70,6 +82,7 @@ class BRATSDataModule(LightningDataModule):
         self,
         data_dir: str, # should target an npy file, make sure to process your data first on an npy file
         train_ratio: float = 0.8,
+        norm = 'min-max',
         batch_size: int = 32,
         num_workers: int = 4,
         shuffle: bool = True,
@@ -80,8 +93,8 @@ class BRATSDataModule(LightningDataModule):
         random_crop_size = None,
         dtype = torch.float32,
         slice_wise = False,
-        include_seg = True,
-        verbose = True
+        verbose = True,
+        **kwargs
     ):
         super().__init__()
         self.dataset_kwargs = {
@@ -93,32 +106,30 @@ class BRATSDataModule(LightningDataModule):
             "dtype": dtype
         }
         self.data_dir = data_dir
+        self.norm = norm
         self.batch_size = batch_size
         self.num_workers = num_workers
         self.shuffle = shuffle
         self.slice_wise = slice_wise
         self.train_ratio = train_ratio
         self.verbose = verbose
-        self.include_seg = include_seg
+        self.drop_channels = kwargs.get('drop_channels', [])
+        self.reduce_empty_slices = kwargs.get('reduce_empty_slices', False)
 
     def setup(self, stage=None):
         data = torch.from_numpy(np.load(self.data_dir, allow_pickle=True))
+        if len(self.drop_channels) > 0:
+            data = data[:, [i for i in range(data.shape[1]) if i not in self.drop_channels]]
 
-        # data = data[:, 0, None, :, :, 32, None] ##
-        if not self.include_seg:
-            data = data[:, 0, None]
-        
-        # normalize to [0-1] (volume-wise normalization)
-        norm = lambda data: (2 * data - data.min() - data.max()) / (data.max() - data.min())
+        # normalizing the data
         for idx in tqdm(range(data.shape[0]), desc="Normalizing data", position=0, leave=True):
-            data[idx, 0] = norm(data[idx, 0])
-            if self.include_seg:
-                data[idx, 1] = torch.where(data[idx, 1] == 0, -1, data[idx, 1]) # labels [0, 1] => [-1, 1] for simplicity
+            data[idx, :] = normalize(data[idx, :], self.norm)
 
-        data = data.permute(0, 4, 1, 2, 3) # depth first
-
+        # slicing the data
         if self.slice_wise:
-            N, D, C, W, H = data.shape
+            N, C, W, H, D = data.shape
+            
+            data = data.permute(0, 4, 1, 2, 3) # depth first
 
             # merging depth and batch dimension
             data = data.reshape(N * D, C, W, H)
@@ -128,8 +139,9 @@ class BRATSDataModule(LightningDataModule):
             slice_positions = slice_positions.flatten()
 
             # reducing number of empty slices only if included seg
-            if self.include_seg:
-                empty_slices_map = data[:, 0].mean(dim=(1, 2)) == -1 # only first channel (CARE!!)
+            if self.reduce_empty_slices:
+                # not working with z-score normalization
+                empty_slices_map = data[:, 0].mean(dim=(1, 2)) <= data.min() # only first channel (CARE!!)
                 empty_slices_num = empty_slices_map.sum().item()
                 num_to_set_false = int(empty_slices_num * 0.1)
 

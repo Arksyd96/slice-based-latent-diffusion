@@ -1,4 +1,48 @@
-import torch 
+import torch
+from torch import nn
+
+class MaskReconstructionLoss(nn.Module):
+    def __init__(self, alpha_dice=1.0, alpha_mse=1.0, alpha_acc=1.0):
+        """
+        Custom loss function for binary masks with spatial consistency loss.
+
+        Args:
+        - alpha_dice (float): Weight for Dice loss.
+        - alpha_mse (float): Weight for MSE loss.
+        - alpha_acc (float): Weight for accuracy loss.
+        """
+        super(MaskReconstructionLoss, self).__init__()
+        self.alpha_dice = alpha_dice
+        self.alpha_mse = alpha_mse
+        self.alpha_acc = alpha_acc
+
+    def forward(self, mask_pred, mask_target):
+        """
+        Forward pass of the custom loss.
+
+        Args:
+        - mask_pred (torch.Tensor): Predicted masks of shape (batch_size, 1, 128, 128, 64).
+        - mask_target (torch.Tensor): Target masks of the same shape as mask_pred.
+
+        Returns:
+        - loss (torch.Tensor): Combined loss.
+        """
+        dims = (1, 2, 3) + ((4,) if mask_pred.dim() == 5 else ())
+
+        # Dice Loss
+        dice_loss = 1 - (2 * (mask_pred * mask_target).sum(dim=dims) + 1) / (mask_pred.sum(dim=dims) + mask_target.sum(dim=dims) + 1)
+
+        # MSE Loss
+        mse_loss = nn.functional.mse_loss(mask_pred, mask_target, reduction='none').mean(dim=dims)
+
+        # Accuracy Loss
+        acc_loss = (mask_pred == mask_target).float().mean(dim=dims)
+
+        # Combine the losses with the specified weights
+        loss = (self.alpha_dice * dice_loss) + (self.alpha_mse * mse_loss) + (self.alpha_acc * acc_loss)
+
+        return loss
+
 
 def spatially_stack_latents(latents, grid_size, index_channel=False):
     batch_size, num_latents, num_channels, height, width = latents.size()

@@ -17,7 +17,6 @@ from pytorch_lightning.loggers import wandb as wandb_logger
 # from modules.data.datamodules import SimpleDataModule
 from modules.models.pipelines import DiffusionPipeline
 from modules.models.estimators import UNet
-from modules.external.stable_diffusion.unet_openai import UNetModel
 from modules.models.noise_schedulers import GaussianNoiseScheduler
 from modules.models.embedders import TimeEmbbeding
 from modules.models.embedders.latent_embedders import VAE
@@ -32,17 +31,6 @@ import os
 os.environ['WANDB_API_KEY'] = 'bdc8857f9d6f7010cff35bcdc0ae9413e05c75e1'
 
 torch.set_float32_matmul_precision('high')
-
-class IdentityDataset(torch.utils.data.Dataset):
-    def __init__(self, *data):
-        self.data = data
-
-    def __len__(self):
-        return self.data[-1].__len__()
-
-    def __getitem__(self, index):
-        return [d[index] for d in self.data]
-
 
 if __name__ == "__main__":
     
@@ -141,26 +129,26 @@ if __name__ == "__main__":
     latent_embedder = latent_embedder.load_from_checkpoint(latent_embedder_checkpoint, time_embedder=None)
    
     # ------------ Initialize Pipeline ------------
-    pipeline = DiffusionPipeline.load_from_checkpoint(
-        './runs/2023_08_16_113818 (continuity)/epoch=999-step=63000.ckpt', 
-        latent_embedder=latent_embedder
-    )
-
-    # pipeline = DiffusionPipeline(
-    #     noise_estimator=noise_estimator, 
-    #     noise_estimator_kwargs=noise_estimator_kwargs,
-    #     noise_scheduler=noise_scheduler, 
-    #     noise_scheduler_kwargs = noise_scheduler_kwargs,
-    #     latent_embedder=latent_embedder,
-    #     # latent_embedder_checkpoint = latent_embedder_checkpoint,
-    #     estimator_objective='x_T',
-    #     estimate_variance=False, 
-    #     use_self_conditioning=False, 
-    #     use_ema=False,
-    #     classifier_free_guidance_dropout=0.0, # Disable during training by setting to 0
-    #     do_input_centering=False,
-    #     clip_x0=False
+    # pipeline = DiffusionPipeline.load_from_checkpoint(
+    #     './runs/2023_08_16_113818 (continuity)/epoch=999-step=63000.ckpt', 
+    #     latent_embedder=latent_embedder
     # )
+
+    pipeline = DiffusionPipeline(
+        noise_estimator=noise_estimator, 
+        noise_estimator_kwargs=noise_estimator_kwargs,
+        noise_scheduler=noise_scheduler, 
+        noise_scheduler_kwargs = noise_scheduler_kwargs,
+        latent_embedder=latent_embedder,
+        # latent_embedder_checkpoint = latent_embedder_checkpoint,
+        estimator_objective='x_T',
+        estimate_variance=False, 
+        use_self_conditioning=False, 
+        use_ema=False,
+        classifier_free_guidance_dropout=0.0, # Disable during training by setting to 0
+        do_input_centering=False,
+        clip_x0=False
+    )
     
     # pipeline_old = pipeline.load_from_checkpoint('runs/2022_11_27_085654_chest_diffusion/last.ckpt')
     # pipeline.noise_estimator.load_state_dict(pipeline_old.noise_estimator.state_dict(), strict=True)

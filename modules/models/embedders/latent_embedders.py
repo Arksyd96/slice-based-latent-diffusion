@@ -605,8 +605,6 @@ class VQGAN(VeryBasicModel):
         d_weight = torch.clamp(d_weight, 0.0, 1e4)
         return d_weight.detach()
 
-from ..embedders.time_embedder import TimeEmbbeding
-
 class VAE(BasicModel):
     def __init__(
         self,
@@ -636,6 +634,8 @@ class VAE(BasicModel):
         lr_scheduler_kwargs={},
         loss = torch.nn.L1Loss,
         loss_kwargs={'reduction': 'none'},
+        use_ssim_loss = True,
+        use_perceptual_loss = True,
         sample_every_n_steps = 1000
 
     ):
@@ -647,6 +647,8 @@ class VAE(BasicModel):
         )
         self.sample_every_n_steps=sample_every_n_steps
         self.loss_fct = loss(**loss_kwargs)
+        self.use_ssim_loss = use_ssim_loss
+        self.use_perceptual_loss = use_perceptual_loss
         # self.ssim_fct = SSIM(data_range=1, size_average=False, channel=out_channels, spatial_dims=spatial_dims, nonnegative_ssim=True)
         self.embedding_loss_weight = embedding_loss_weight
         self.perceiver = perceiver(**perceiver_kwargs).eval() if perceiver is not None else None 
@@ -750,6 +752,8 @@ class VAE(BasicModel):
         #     nn.Parameter(torch.zeros(size=()) )
         #     for _ in range(1, deep_supervision+1)
         # ])
+        
+        self.save_hyperparameters()
 
     def encode_timestep(self, timestep):
         if self.time_embedder is None:
@@ -811,14 +815,18 @@ class VAE(BasicModel):
     
     def rec_loss(self, pred, pred_vertical, target):
         interpolation_mode = 'nearest-exact'
-
-        # Loss
-        loss = 0
         
-        # perception loss only on the images and not the masks
-        rec_loss = self.loss_fct(pred, target) + self.perception_loss(pred[:, 0, None], target[:, 0, None]) + self.ssim_loss(pred, target)
-        # rec_loss = rec_loss/ torch.exp(self.logvar) + self.logvar # Note this is include in Stable-Diffusion but logvar is not used in optimizer 
-        loss += torch.sum(rec_loss) / pred.shape[0]  
+        # compute reconstruction loss
+        perceptual_loss = self.perception_loss(pred[:, 0, None], target[:, 0, None]) if self.use_perceptual_loss else 0
+        ssim_loss = self.ssim_loss(pred, target) if self.use_ssim_loss else 0
+        pixel_loss = self.loss_fct(pred, target)
+
+        loss = torch.mean(perceptual_loss + ssim_loss + pixel_loss)
+        
+        # Note this is include in Stable-Diffusion but logvar is not used in optimizer 
+        # rec_loss = rec_loss/ torch.exp(self.logvar) + self.logvar 
+        
+        # loss += torch.sum(rec_loss) / pred.shape[0]  
 
         for i, pred_i in enumerate(pred_vertical): 
             target_i = F.interpolate(target, size=pred_i.shape[2:], mode=interpolation_mode, align_corners=None)  
@@ -826,11 +834,12 @@ class VAE(BasicModel):
             # rec_loss_i = rec_loss_i/ torch.exp(self.logvar_ver[i]) + self.logvar_ver[i] 
             loss += torch.sum(rec_loss_i) / pred.shape[0]  
 
-        return loss 
+        return loss
 
     def _step(self, batch, batch_idx, split, step):
         # ------------------------- Get Source/Target ---------------------------
-        x, t = batch
+        # x, t = batch
+        x = batch[0]
         target = x
         
         if self.time_embedder is None:
@@ -845,11 +854,11 @@ class VAE(BasicModel):
          
         # --------------------- Compute Metrics  -------------------------------
         with torch.no_grad():
-            logging_dict = {'loss':loss, 'emb_loss': emb_loss}
+            logging_dict = {'loss': loss, 'emb_loss': emb_loss}
             logging_dict['L2'] = torch.nn.functional.mse_loss(pred, target)
             logging_dict['L1'] = torch.nn.functional.l1_loss(pred, target)
-            logging_dict['ssim'] = ssim((pred+1)/2, (target.type(pred.dtype)+1)/2, data_range=1)
-            # logging_dict['logvar'] = self.logvar
+            logging_dict['mask_rec_loss'] = torch.sum(self.loss_fct(pred, target)) / pred.shape[0]      
+            logging_dict['ssim'] = ssim((pred + 1) / 2, (target.type(pred.dtype) + 1) / 2, data_range=1)
 
         # ----------------- Log Scalars ----------------------
         for metric_name, metric_val in logging_dict.items():

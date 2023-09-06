@@ -24,15 +24,15 @@ if __name__ == "__main__":
     # --------------- Logger --------------------
     logger = wandb_logger.WandbLogger(
         project = 'slice-based-latent-diffusion', 
-        name    = 'first-stage VAE 4 ch',
+        name    = 'first-stage VAE Mask',
         save_dir = save_dir
     )
 
     # ------------ Load Data ----------------
     datamodule = BRATSDataModule(
         data_dir        = './data/brats_preprocessed.npy',
-        train_ratio     = 0.9,
-        batch_size      = 32,
+        train_ratio     = 0.95,
+        batch_size      = 8,
         num_workers     = 6,
         shuffle         = True,
         horizontal_flip = 0.5,
@@ -40,17 +40,19 @@ if __name__ == "__main__":
         rotation        = (0, 90),
         # random_crop_size = (96, 96),
         dtype           = torch.float32,
-        slice_wise      = True,
-        include_seg     = False
+        slice_wise      = False,
+        include_seg     = True,
+        seg_only        = True # for segmentation only
     )
+
 
     # ------------ Initialize Model ------------
     model = VAE(
         in_channels     = 1, 
         out_channels    = 1, 
-        emb_channels    = 3,
-        spatial_dims    = 2, # 2D or 3D
-        hid_chs         = [128, 256, 256 + 128, 512], 
+        emb_channels    = 1,
+        spatial_dims    = 3, # 2D or 3D
+        hid_chs         = [32, 64, 128, 256], 
         kernel_sizes    = [3, 3, 3, 3],
         strides         = [1, 2, 2, 2],
         time_embedder   = None,
@@ -90,14 +92,15 @@ if __name__ == "__main__":
     image_logger = ImageReconstructionLogger(
         n_samples = 6,
         save      = True,
-        save_dir  = save_dir
+        save_dir  = save_dir,
+        is_3d     = True
     )
         
     trainer = Trainer(
         logger      = logger,
-        strategy    = 'ddp',
-        devices     = 4,
-        num_nodes   = 2,  
+        # strategy    = 'ddp',
+        # devices     = 4,
+        # num_nodes   = 2,  
         precision   = 32,
         accelerator = 'gpu',
         # gradient_clip_val=0.5,
