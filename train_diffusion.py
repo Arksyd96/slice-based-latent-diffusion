@@ -9,8 +9,6 @@ import torch
 import torch.nn as nn
 from pytorch_lightning.trainer import Trainer
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
-import numpy as np 
-import torchio as tio 
 
 from pytorch_lightning.loggers import wandb as wandb_logger
 
