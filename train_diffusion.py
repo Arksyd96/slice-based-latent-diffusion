@@ -14,7 +14,7 @@ from pytorch_lightning.loggers import wandb as wandb_logger
 
 # from modules.data.datamodules import SimpleDataModule
 from modules.models.pipelines import DiffusionPipeline
-from modules.models.estimators import UNet
+from modules.models.estimators.unet import UNet
 from modules.models.noise_schedulers import GaussianNoiseScheduler
 from modules.models.embedders import TimeEmbbeding
 from modules.models.embedders.cond_embedders import ConditionMLP
@@ -34,7 +34,7 @@ torch.set_float32_matmul_precision('high')
 if __name__ == "__main__":
     # --------------- Settings --------------------
     current_time = datetime.now().strftime("%Y_%m_%d_%H%M%S")
-    save_dir = '{}/runs/first_stage-{}'.format(os.path.curdir, str(current_time))
+    save_dir = '{}/runs/diffusion-{}'.format(os.path.curdir, str(current_time))
     os.makedirs(save_dir, exist_ok=True)
 
     # --------------- Logger --------------------

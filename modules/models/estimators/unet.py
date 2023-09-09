@@ -52,7 +52,7 @@ class UNet(nn.Module):
 
         # ------------- Condition-Embedder-----------
         if cond_embedder is not None:
-            self.cond_embedder=cond_embedder(**cond_embedder_kwargs)
+            self.cond_embedder = cond_embedder(**cond_embedder_kwargs)
         else:
             self.cond_embedder = None 
 
