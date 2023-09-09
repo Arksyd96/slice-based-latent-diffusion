@@ -49,8 +49,9 @@ if __name__ == "__main__":
     datamodule = BRATSDataModule(
         data_dir        = './data/brats_preprocessed.npy',
         train_ratio     = 1.0,
-        batch_size      = 32,
-        num_workers     = 32,
+        norm            = 'centered-norm',
+        batch_size      = 16,
+        num_workers     = 16,
         shuffle         = True,
         # horizontal_flip = 0.5,
         # vertical_flip   = 0.5,
