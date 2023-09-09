@@ -14,7 +14,7 @@ from pytorch_lightning.loggers import wandb as wandb_logger
 
 # from modules.data.datamodules import SimpleDataModule
 from modules.models.pipelines import DiffusionPipeline
-from modules.models.estimators.unet import UNet
+from modules.models.estimators import UNet
 from modules.models.noise_schedulers import GaussianNoiseScheduler
 from modules.models.embedders import TimeEmbbeding
 from modules.models.embedders.cond_embedders import ConditionMLP
