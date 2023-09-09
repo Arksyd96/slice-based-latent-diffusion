@@ -1,6 +1,7 @@
 
 from pathlib import Path 
 from tqdm import tqdm
+from modules.funcs import spatially_stack_latents
 
 import torch 
 import torch.nn.functional as F 
@@ -88,11 +89,10 @@ class DiffusionPipeline(BasicModel):
                     # positions = torch.arange(0, x_0[idx].shape[0]).to(self.latent_embedder.device, torch.long)
                     # pos_emb = self.latent_embedder.encode_timestep(positions) 
                     volume = self.latent_embedder.encode(x_0[idx], emb=None) # encode one volume of 64x1x128x128 => 64x2x16x16
-                    volume = volume.permute(1, 0, 2, 3) # => 2x64x16x16
                     batch.append(volume)
             
             x_0 = torch.stack(batch) # => Bx2x64x16x16
-            x_0 = x_0.reshape(x_0.shape[0], 8, 128, 128)
+            x_0 = spatially_stack_latents(x_0, (8, 8), index_channel=True)
             batch.clear()
 
         if self.condition_latent_embedder is not None and condition is not None:

@@ -41,7 +41,7 @@ if __name__ == "__main__":
     # --------------- Logger --------------------
     logger = wandb_logger.WandbLogger(
         project='slice-based-latent-diffusion', 
-        name='diffusion-training (3D avec mask)',
+        name='diffusion-training (3D avec mask embedder [Criann])',
         save_dir=save_dir
         # id='24hyhi7b',
         # resume="must"

@@ -1,11 +1,11 @@
 from typing import Any
 import numpy as np
 import os
-from pytorch_lightning.utilities.types import STEP_OUTPUT
 import torch
 import pytorch_lightning as pl
 import wandb
 from torchvision.utils import save_image
+from modules.funcs import reverse_spatial_stack
 
 class ImageReconstructionLogger(pl.Callback):
     def __init__(
@@ -115,11 +115,13 @@ class ImageGenerationLogger(pl.Callback):
 
             with torch.no_grad():
                 sample_img = pl_module.sample(num_samples=1, img_size=self.noise_shape, condition=None).detach()
-                # => 1, 8, 128, 128
+                # => 1, 4, 128, 128
 
-                sample_img = sample_img.squeeze(0).reshape(8, 64, 16, 16)
-                # => 64, 2, 32, 32
-                sample_img = sample_img.permute(1, 0, 2, 3)
+                # sample_img = sample_img.squeeze(0).reshape(8, 64, 16, 16)
+                # # => 64, 2, 32, 32
+                # sample_img = sample_img.permute(1, 0, 2, 3)
+
+                sample_img = reverse_spatial_stack(sample_img, (16, 16), index_channel=False).squeeze(0)
 
                 sample_img = pl_module.latent_embedder.decode(sample_img, emb=None)
                 # => 64x2x128x128
