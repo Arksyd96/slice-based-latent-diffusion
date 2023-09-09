@@ -93,9 +93,9 @@ if __name__ == "__main__":
         
     trainer = Trainer(
         logger      = logger,
-        # strategy    = 'ddp',
-        # devices     = 4,
-        # num_nodes   = 2,  
+        strategy    = 'ddp',
+        devices     = 4,
+        num_nodes   = 2,  
         precision   = 32,
         accelerator = 'gpu',
         # gradient_clip_val=0.5,
