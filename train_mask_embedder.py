@@ -21,15 +21,14 @@ torch.set_float32_matmul_precision('high')
 
 if __name__ == "__main__":
     # --------------- Settings --------------------
-    uuid = shortuuid.uuid()[:6]
     current_time = datetime.now().strftime("%Y_%m_%d_%H%M%S")
-    save_dir = '{}/runs/mask-embedder-{}-{}'.format(os.path.curdir, str(current_time), uuid)
+    save_dir = '{}/runs/mask-embedder-{}'.format(os.path.curdir, str(current_time))
     os.makedirs(save_dir, exist_ok=True)
 
     # --------------- Logger --------------------
     logger = wandb_logger.WandbLogger(
         project = 'slice-based-latent-diffusion', 
-        name    = 'mask-embedder-{}'.format(uuid),
+        name    = 'mask-embedder',
         save_dir = save_dir
     )
 
@@ -81,7 +80,7 @@ if __name__ == "__main__":
         save_last   = True,
         save_top_k  = 1,
         mode        = 'min',
-        filename    = 'mask-embedder-{uuid}-{epoch:02d}-{val/loss:.2f}',
+        filename    = 'mask-embedder-{epoch:02d}',
     )
     
     image_logger = ImageReconstructionLogger(

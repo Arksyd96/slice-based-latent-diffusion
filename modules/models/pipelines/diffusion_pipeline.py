@@ -15,6 +15,7 @@ class DiffusionPipeline(BasicModel):
         noise_scheduler,
         noise_estimator,
         latent_embedder=None,
+        condition_latent_embedder=None,
         noise_scheduler_kwargs={},
         noise_estimator_kwargs={},
         # latent_embedder_checkpoint='',
@@ -52,6 +53,7 @@ class DiffusionPipeline(BasicModel):
         #         param.requires_grad = False
         # else:
         self.latent_embedder = latent_embedder
+        self.condition_latent_embedder = condition_latent_embedder
 
         self.estimator_objective = estimator_objective
         self.use_self_conditioning = use_self_conditioning
@@ -65,13 +67,14 @@ class DiffusionPipeline(BasicModel):
         if use_ema:
             self.ema_model = EMAModel(self.noise_estimator, **ema_kwargs)
 
-        self.save_hyperparameters(ignore=['latent_embedder'])
+        self.save_hyperparameters(ignore=['latent_embedder', 'condition_latent_embedder'])
 
     def _step(self, batch: dict, batch_idx: int, state: str, step: int, optimizer_idx:int):
         results = {}
-        x_0 = batch[0]
-        # x_0 = x_0.type(torch.float32)
-        condition = None 
+        x_0 = batch[0].permute(0, 4, 1, 2, 3)
+        
+        x_0 = x_0[:, :, 0, None, ...] # medical image
+        condition = x_0[:, :, 1, None, ...] # mask
 
         # at this point, batch should be of shape Bx64x1x128x128
         # we encode 64 images at once
@@ -82,14 +85,25 @@ class DiffusionPipeline(BasicModel):
             self.latent_embedder.eval() 
             with torch.no_grad():
                 for idx in range(x_0.shape[0]):
-                    positions = torch.arange(0, x_0[idx].shape[0]).to(self.latent_embedder.device, torch.long)
-                    pos_emb = self.latent_embedder.encode_timestep(positions) 
-                    volume = self.latent_embedder.encode(x_0[idx], emb=pos_emb) # encode one volume of 64x1x128x128 => 64x2x16x16
+                    # positions = torch.arange(0, x_0[idx].shape[0]).to(self.latent_embedder.device, torch.long)
+                    # pos_emb = self.latent_embedder.encode_timestep(positions) 
+                    volume = self.latent_embedder.encode(x_0[idx], emb=None) # encode one volume of 64x1x128x128 => 64x2x16x16
                     volume = volume.permute(1, 0, 2, 3) # => 2x64x16x16
                     batch.append(volume)
             
             x_0 = torch.stack(batch) # => Bx2x64x16x16
             x_0 = x_0.reshape(x_0.shape[0], 8, 128, 128)
+            batch.clear()
+
+        if self.condition_latent_embedder is not None and condition is not None:
+            self.condition_latent_embedder.eval()
+            with torch.no_grad():
+                for idx in range(condition.shape[0]):
+                    mask = self.condition_latent_embedder.encode(condition[idx], emb=None) # 64 * 1 * 8 *8
+                    mask = mask.reshape(-1)
+                    batch.append(mask)
+
+            condition = torch.stack(batch)
 
         
         if self.do_input_centering:

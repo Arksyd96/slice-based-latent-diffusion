@@ -1,5 +1,5 @@
 import os
-os.environ['KMP_DUPLICATE_LIB_OK']='True'
+os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 
 from email.mime import audio
 from pathlib import Path
@@ -18,7 +18,7 @@ from pytorch_lightning.loggers import wandb as wandb_logger
 from modules.models.pipelines import DiffusionPipeline
 from modules.models.estimators import UNet
 from modules.models.noise_schedulers import GaussianNoiseScheduler
-from modules.models.embedders import TimeEmbbeding
+from modules.models.embedders import TimeEmbbeding, ConditionMLP
 from modules.models.embedders.latent_embedders import VAE
 from modules.loggers import ImageGenerationLogger
 
@@ -33,83 +33,64 @@ os.environ['WANDB_API_KEY'] = 'bdc8857f9d6f7010cff35bcdc0ae9413e05c75e1'
 torch.set_float32_matmul_precision('high')
 
 if __name__ == "__main__":
-    
-    # data = np.load('./brats_preprocessed.npy', allow_pickle=True)
-    # data = data[:, 0, None]
-    # data = data.transpose(0, 4, 1, 2, 3) # depth first
-    
-    # norm = lambda data: (2 * data - data.min() - data.max()) / (data.max() - data.min())
-    # for idx in range(data.shape[0]):
-    #     data[idx] = norm(data[idx]).astype(np.float32)
+    # --------------- Settings --------------------
+    current_time = datetime.now().strftime("%Y_%m_%d_%H%M%S")
+    save_dir = '{}/runs/first_stage-{}'.format(os.path.curdir, str(current_time))
+    os.makedirs(save_dir, exist_ok=True)
 
-        
-    # # train test split
-    # tr_ds = IdentityDataset(data)
-  
-    # dm = SimpleDataModule(
-    #     ds_train = tr_ds,
-    #     batch_size=16, 
-    #     num_workers=32,
-    #     pin_memory=True
-    # ) 
+    # --------------- Logger --------------------
+    logger = wandb_logger.WandbLogger(
+        project='slice-based-latent-diffusion', 
+        name='diffusion-training (3D avec mask)',
+        save_dir=save_dir
+        # id='24hyhi7b',
+        # resume="must"
+    )
 
     datamodule = BRATSDataModule(
         data_dir        = './data/brats_preprocessed.npy',
         train_ratio     = 1.0,
-        batch_size      = 8,
+        batch_size      = 32,
         num_workers     = 32,
         shuffle         = True,
         # horizontal_flip = 0.5,
-        vertical_flip   = 0.5,
+        # vertical_flip   = 0.5,
         # rotation        = (0, 90),
         # random_crop_size = (96, 96),
         dtype           = torch.float32,
         slice_wise      = False
     )
 
-    current_time = datetime.now().strftime("%Y_%m_%d_%H%M%S")
-    path_run_dir = Path.cwd() / 'runs' / str(current_time)
-    path_run_dir.mkdir(parents=True, exist_ok=True)
-    accelerator = 'gpu' if torch.cuda.is_available() else 'cpu'
-    
-    logger = wandb_logger.WandbLogger(
-        project='slice-based-latent-diffusion', 
-        name='diffusion-training (3D avec mask)',
-        save_dir=path_run_dir
-        # id='24hyhi7b',
-        # resume="must"
-    )
 
     # ------------ Initialize Model ------------
-    cond_embedder = None 
+    cond_embedder = ConditionMLP 
     # cond_embedder = LabelEmbedder
     cond_embedder_kwargs = {
-        'emb_dim': 1024,
-        'num_classes': 2
+        'in_features': 2048
     }
  
 
     time_embedder = TimeEmbbeding
     time_embedder_kwargs ={
-        'emb_dim': 1024 # stable diffusion uses 4*model_channels (model_channels is about 256)
+        'emb_dim': 2048 # stable diffusion uses 4*model_channels (model_channels is about 256)
     }
 
 
     noise_estimator = UNet
     noise_estimator_kwargs = {
-        'in_ch': 8, 
-        'out_ch': 8, 
+        'in_ch': 3, 
+        'out_ch': 3, 
         'spatial_dims': 2,
-        'hid_chs':  [256, 256, 512, 1024],
-        'kernel_sizes':[3, 3, 3, 3],
-        'strides':     [1, 2, 2, 2],
-        'time_embedder':time_embedder,
+        'hid_chs': [256, 256, 512, 1024],
+        'kernel_sizes': [3, 3, 3, 3],
+        'strides': [1, 2, 2, 2],
+        'time_embedder': time_embedder,
         'time_embedder_kwargs': time_embedder_kwargs,
-        'cond_embedder':cond_embedder,
+        'cond_embedder': cond_embedder,
         'cond_embedder_kwargs': cond_embedder_kwargs,
         'deep_supervision': False,
-        'use_res_block':True,
-        'use_attention':'none',
+        'use_res_block': True,
+        'use_attention': 'none',
     }
 
 
@@ -124,9 +105,12 @@ if __name__ == "__main__":
     
     # ------------ Initialize Latent Space  ------------
     latent_embedder = VAE
-    latent_embedder_checkpoint = './runs/first_stage-2023_08_11_230709 (best AE so far + mask)/epoch=489-step=807030.ckpt'
+    # latent_embedder_checkpoint = './runs/first_stage-2023_08_11_230709 (best AE so far + mask)/epoch=489-step=807030.ckpt'
+    latent_embedder_checkpoint = './runs/first_stage-2023_08_25_144308 (VAE 3 ch)/last.ckpt'
+    mask_latent_embedder_checkpoint = './runs/mask-embedder-2023_09_09_192818-WLZR2X/last.ckpt'
 
     latent_embedder = latent_embedder.load_from_checkpoint(latent_embedder_checkpoint, time_embedder=None)
+    mask_latent_embedder = latent_embedder.load_from_checkpoint(mask_latent_embedder_checkpoint, time_embedder=None)
    
     # ------------ Initialize Pipeline ------------
     # pipeline = DiffusionPipeline.load_from_checkpoint(
@@ -140,7 +124,7 @@ if __name__ == "__main__":
         noise_scheduler=noise_scheduler, 
         noise_scheduler_kwargs = noise_scheduler_kwargs,
         latent_embedder=latent_embedder,
-        # latent_embedder_checkpoint = latent_embedder_checkpoint,
+        condition_latent_embedder=mask_latent_embedder,
         estimator_objective='x_T',
         estimate_variance=False, 
         use_self_conditioning=False, 
@@ -155,7 +139,7 @@ if __name__ == "__main__":
 
     # -------------- Training Initialization ---------------
     checkpointing = ModelCheckpoint(
-        dirpath=str(path_run_dir), # dirpath
+        dirpath=str(save_dir), # dirpath
         monitor=None,
         every_n_epochs=50,
         save_last=True,
@@ -163,8 +147,8 @@ if __name__ == "__main__":
     )
 
     image_logger = ImageGenerationLogger(
-        noise_shape=(8, 128, 128),
-        save_dir=str(path_run_dir),
+        noise_shape=(3, 128, 128),
+        save_dir=str(save_dir),
         save_every_n_epochs=10,
         save=True
     )

@@ -24,4 +24,23 @@ class LabelEmbedder(nn.Module):
         return c
 
 
+class ConditionMLP(nn.Module):
+    def __init__(self, in_features, hidden_dim=512):
+        super(ConditionMLP, self).__init__()
+        
+        # MLP layers
+        self.mlp = nn.Sequential(
+            nn.Linear(in_features, hidden_dim),
+            nn.ReLU(inplace=True),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU(inplace=True)
+        )
+        
+    def forward(self, conditions):
+        batch_size, condition_channels, height, width = conditions.size()
+        conditions = conditions.view(batch_size, -1)  # Flatten
+        
+        embedded_conditions = self.mlp(conditions)
+        return embedded_conditions
+
 
