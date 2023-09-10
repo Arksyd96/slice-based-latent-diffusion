@@ -293,7 +293,8 @@ class DiffusionPipeline(BasicModel):
             timesteps_array = self.noise_scheduler.timesteps_array[slice(0, steps)] # [0, ...,T-1] (target time not time of x_t)
             
         for i, t in tqdm(enumerate(reversed(timesteps_array))):
-            # UNet prediction 
+            # UNet prediction
+            x_t = add_index_channel(x_t, (8, 8))
             x_t, x_0, x_T, self_cond = self(x_t, t.expand(x_t.shape[0]), condition, self_cond=self_cond, **kwargs)
             self_cond = self_cond if self.use_self_conditioning else None  
         
@@ -316,7 +317,6 @@ class DiffusionPipeline(BasicModel):
     def sample(self, num_samples, img_size, condition=None, index_channel=False, **kwargs):
         template = torch.zeros((num_samples, *img_size), device=self.device)
         x_T = self.noise_scheduler.x_final(template)
-        x_T = add_index_channel(x_T, (8, 8)) if index_channel else x_T
         x_0 = self.denoise(x_T, condition=condition, **kwargs)
         return x_0 
     
