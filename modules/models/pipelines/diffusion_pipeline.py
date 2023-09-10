@@ -70,7 +70,7 @@ class DiffusionPipeline(BasicModel):
 
         self.save_hyperparameters(ignore=['latent_embedder', 'condition_latent_embedder'])
 
-    def _step(self, batch: dict, batch_idx: int, state: str, step: int, optimizer_idx:int):
+    def _step(self, batch, batch_idx, state, step):
         results = {}
         x_0 = batch[0].permute(0, 4, 1, 2, 3)
         
