@@ -98,6 +98,8 @@ class DiffusionPipeline(BasicModel):
         with torch.no_grad():
             # Randomly selecting t [0,T-1] and compute x_t (noisy version of x_0 at t)
             x_t, x_T, t = self.noise_scheduler.sample(x_0, channels=[0, 1, 2]) 
+            # x_t en sortie sera de la taille de x_0 mais avec du bruit que sur les channels 0, 1, 2
+            # x_T aura un nombre de channels de taille du tableau [0, 1, 2]
                 
         # Use EMA Model
         if self.use_ema and (state != 'train'):
