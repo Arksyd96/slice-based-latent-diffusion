@@ -199,7 +199,7 @@ class DiffusionPipeline(BasicModel):
 
         # ----------------- Log Scalars ----------------------
         for metric_name, metric_val in results.items():
-            self.log(f"{state}/{metric_name}", metric_val, batch_size=x_0.shape[0], on_step=True, on_epoch=True)           
+            self.log(f"{state}/{metric_name}", metric_val, batch_size=x_0.shape[0], on_step=True, on_epoch=True, sync_dist=True)           
         
         
         # #------------------ Log Image -----------------------
