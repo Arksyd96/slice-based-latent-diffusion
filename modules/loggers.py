@@ -114,29 +114,9 @@ class ImageGenerationLogger(pl.Callback):
             pl_module.eval()
 
             with torch.no_grad():
-                condition = trainer.train_dataloader.dataset.sample(1)[0] # 1x2x128x128x64
-                condition = condition.permute(0, 4, 1, 2, 3) # 1x64x2x128x128
-                condition = condition[:, :, 1, None, ...]
-                
-                condition = pl_module.condition_latent_embedder.encode(
-                    condition.squeeze(0).to(pl_module.condition_latent_embedder.device, dtype=torch.float32), 
-                    emb=None
-                ) # 64x1x8x8
-                
-                condition = condition.unsqueeze(0)
+                sample_img = pl_module.sample(num_samples=1, img_size=self.noise_shape, condition=None).detach()
 
-                sample_img = pl_module.sample(
-                    num_samples=1, 
-                    img_size=self.noise_shape, 
-                    condition=condition
-                ).detach()
-                # => 1, 4, 128, 128
-
-                # sample_img = sample_img.squeeze(0).reshape(8, 64, 16, 16)
-                # # => 64, 2, 32, 32
-                # sample_img = sample_img.permute(1, 0, 2, 3)
-
-                sample_img = reverse_spatial_stack(sample_img, (16, 16), index_channel=True).squeeze(0)
+                sample_img = reverse_spatial_stack(sample_img, (16, 16), index_channel=False).squeeze(0)
 
                 sample_img = pl_module.latent_embedder.decode(sample_img, emb=None)
                 # => 64x2x128x128

@@ -1,7 +1,7 @@
 
 from pathlib import Path 
 from tqdm import tqdm
-from modules.funcs import spatially_stack_latents
+from modules.funcs import spatially_stack_latents, add_index_channel
 
 import torch 
 import torch.nn.functional as F 
@@ -140,7 +140,6 @@ class DiffusionPipeline(BasicModel):
             target = x_0 
         else:
             raise NotImplementedError(f"Option estimator_target={self.estimator_objective} not supported.")
-
         
         # ------------------------- Compute Loss ---------------------------
         interpolation_mode = 'area'
@@ -314,9 +313,10 @@ class DiffusionPipeline(BasicModel):
         return x_t # Should be x_0 in final step (t=0)
 
     @torch.no_grad()
-    def sample(self, num_samples, img_size, condition=None, **kwargs):
+    def sample(self, num_samples, img_size, condition=None, index_channel=False, **kwargs):
         template = torch.zeros((num_samples, *img_size), device=self.device)
         x_T = self.noise_scheduler.x_final(template)
+        x_T = add_index_channel(x_T, (8, 8)) if index_channel else x_T
         x_0 = self.denoise(x_T, condition=condition, **kwargs)
         return x_0 
     

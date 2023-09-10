@@ -89,3 +89,25 @@ def reverse_spatial_stack(latents_stacked, shape, index_channel=False):
     latents_stacked = latents_stacked.permute(0, 2, 1, 3, 4).contiguous()  # Rearrange dimensions
 
     return latents_stacked
+
+def add_index_channel(latents_stacked, grid_size):
+    batch_size, num_channels, height, width = latents_stacked.size()
+    num_cols = grid_size[0]
+    num_rows = grid_size[1]
+    
+    height = height // num_cols
+    width = width // num_rows
+    
+    assert height % num_cols == 0, f'Height {height} is not divisible by grid height {num_cols}'
+    assert width % num_rows == 0, f'Width {width} is not divisible by grid width {num_rows}'
+
+    # generating an index channel
+    index_channel = torch.ones(batch_size, 1, num_rows * height, num_cols * width)
+    for i in range(num_rows):
+        for j in range(num_cols):
+            index_channel[:, :, i * height : (i + 1) * height, j * width : (j + 1) * width] *= (i * num_cols + j)
+    
+    # Add index channel
+    latents_stacked = torch.cat([latents_stacked, index_channel.to(latents_stacked.device)], dim=1)
+
+    return latents_stacked
