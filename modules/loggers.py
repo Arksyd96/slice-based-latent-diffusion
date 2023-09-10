@@ -114,7 +114,7 @@ class ImageGenerationLogger(pl.Callback):
             pl_module.eval()
 
             with torch.no_grad():
-                sample_img = pl_module.sample(num_samples=1, img_size=self.noise_shape, condition=None).detach()
+                sample_img = pl_module.sample(num_samples=1, img_size=self.noise_shape, index_channel=True).detach()
 
                 sample_img = reverse_spatial_stack(sample_img, (16, 16), index_channel=False).squeeze(0)
 
