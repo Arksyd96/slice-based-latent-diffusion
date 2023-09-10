@@ -115,7 +115,7 @@ class ImageGenerationLogger(pl.Callback):
 
             with torch.no_grad():
                 condition = trainer.train_dataloader.dataset.sample(1) # 1x64x2x128x128
-                condition = condition[:, :, 1, None, ...] # 1x64x1x128x128
+                condition = condition[0][:, :, 1, None, ...] # 1x64x1x128x128
                 condition = pl_module.condition_latent_embedder.encode(condition.squeeze(0), emb=None) # 64x1x8x8
                 condition = condition.unsqueeze(0)
 
