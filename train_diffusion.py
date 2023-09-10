@@ -157,7 +157,7 @@ if __name__ == "__main__":
 
     trainer = Trainer(
         logger      = logger,
-        strategy    = 'ddp',
+        strategy    = 'ddp_find_unused_parameters_true',
         devices     = 4,
         num_nodes   = 2,  
         precision   = 32,
