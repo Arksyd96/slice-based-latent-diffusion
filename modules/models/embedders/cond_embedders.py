@@ -37,9 +37,7 @@ class ConditionMLP(nn.Module):
         )
         
     def forward(self, conditions):
-        batch_size, condition_channels, height, width = conditions.size()
-        conditions = conditions.view(batch_size, -1)  # Flatten
-        
+        conditions = conditions.view(conditions.shape[0], -1)  # Flatten
         embedded_conditions = self.mlp(conditions)
         return embedded_conditions
 
