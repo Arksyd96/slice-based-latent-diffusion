@@ -72,10 +72,10 @@ class DiffusionPipeline(BasicModel):
 
     def _step(self, batch, batch_idx, state, step):
         results = {}
-        x_0 = batch[0].permute(0, 4, 1, 2, 3)
+        batch = batch[0].permute(0, 4, 1, 2, 3)
         
-        x_0 = x_0[:, :, 0, None, ...] # medical image
-        condition = x_0[:, :, 1, None, ...] # mask
+        x_0 = batch[:, :, 0, None, ...] # medical image
+        condition = batch[:, :, 1, None, ...] # mask
 
         # at this point, batch should be of shape Bx64x1x128x128
         # we encode 64 images at once
