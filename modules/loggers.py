@@ -117,7 +117,7 @@ class ImageGenerationLogger(pl.Callback):
                 condition = trainer.train_dataloader.dataset.sample(1) # 1x64x2x128x128
                 condition = condition[0][:, :, 1, None, ...] # 1x64x1x128x128
                 condition = pl_module.condition_latent_embedder.encode(
-                    condition.squeeze(0).to(pl_module.condition_latent_embedder.device), 
+                    condition.squeeze(0).to(pl_module.condition_latent_embedder.device, dtype=torch.float32), 
                     emb=None
                 ) # 64x1x8x8
                 condition = condition.unsqueeze(0)
