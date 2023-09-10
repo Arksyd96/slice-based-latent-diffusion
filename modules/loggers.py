@@ -114,9 +114,9 @@ class ImageGenerationLogger(pl.Callback):
             pl_module.eval()
 
             with torch.no_grad():
-                condition = trainer.train_dataloader.dataset.sample(1) # 1x2x128x128x64
+                condition = trainer.train_dataloader.dataset.sample(1)[0] # 1x2x128x128x64
                 condition = condition.permute(0, 4, 1, 2, 3) # 1x64x2x128x128
-                condition = condition[0][:, :, 1, None, ...]
+                condition = condition[:, :, 1, None, ...]
                 
                 condition = pl_module.condition_latent_embedder.encode(
                     condition.squeeze(0).to(pl_module.condition_latent_embedder.device, dtype=torch.float32), 
