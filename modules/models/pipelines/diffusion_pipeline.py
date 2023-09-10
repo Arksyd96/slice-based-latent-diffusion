@@ -16,7 +16,6 @@ class DiffusionPipeline(BasicModel):
         noise_scheduler,
         noise_estimator,
         latent_embedder=None,
-        condition_latent_embedder=None,
         noise_scheduler_kwargs={},
         noise_estimator_kwargs={},
         # latent_embedder_checkpoint='',
@@ -54,7 +53,6 @@ class DiffusionPipeline(BasicModel):
         #         param.requires_grad = False
         # else:
         self.latent_embedder = latent_embedder
-        self.condition_latent_embedder = condition_latent_embedder
 
         self.estimator_objective = estimator_objective
         self.use_self_conditioning = use_self_conditioning
@@ -68,17 +66,12 @@ class DiffusionPipeline(BasicModel):
         if use_ema:
             self.ema_model = EMAModel(self.noise_estimator, **ema_kwargs)
 
-        self.save_hyperparameters(ignore=['latent_embedder', 'condition_latent_embedder'])
+        self.save_hyperparameters(ignore=['latent_embedder'])
 
     def _step(self, batch, batch_idx, state, step):
         results = {}
-        batch = batch[0].permute(0, 4, 1, 2, 3)
-        
-        x_0 = batch[:, :, 0, None, ...] # medical image
-        condition = batch[:, :, 1, None, ...] # mask
-
-        # at this point, batch should be of shape Bx64x1x128x128
-        # we encode 64 images at once
+        x_0 = batch[0]
+        condition = None
 
         # Embed into latent space or normalize 
         batch = []
@@ -86,24 +79,12 @@ class DiffusionPipeline(BasicModel):
             self.latent_embedder.eval() 
             with torch.no_grad():
                 for idx in range(x_0.shape[0]):
-                    # positions = torch.arange(0, x_0[idx].shape[0]).to(self.latent_embedder.device, torch.long)
-                    # pos_emb = self.latent_embedder.encode_timestep(positions) 
-                    volume = self.latent_embedder.encode(x_0[idx], emb=None) # encode one volume of 64x1x128x128 => 64x2x16x16
+                    volume = self.latent_embedder.encode(x_0[idx], emb=None)
                     batch.append(volume)
             
-            x_0 = torch.stack(batch) # => Bx2x64x16x16
-            x_0 = spatially_stack_latents(x_0, (8, 8), index_channel=True)
+            x_0 = torch.stack(batch)
+            x_0 = spatially_stack_latents(x_0, (8, 8), index_channel=True) # => [B, 4, 128, 128]
             batch.clear()
-
-        if self.condition_latent_embedder is not None and condition is not None:
-            self.condition_latent_embedder.eval()
-            with torch.no_grad():
-                for idx in range(condition.shape[0]):
-                    mask = self.condition_latent_embedder.encode(condition[idx], emb=None) # 64 * 1 * 8 *8
-                    mask = mask.reshape(-1)
-                    batch.append(mask)
-
-            condition = torch.stack(batch)
 
         
         if self.do_input_centering:
@@ -116,7 +97,7 @@ class DiffusionPipeline(BasicModel):
         # Sample Noise
         with torch.no_grad():
             # Randomly selecting t [0,T-1] and compute x_t (noisy version of x_0 at t)
-            x_t, x_T, t = self.noise_scheduler.sample(x_0) 
+            x_t, x_T, t = self.noise_scheduler.sample(x_0, channels=[0, 1, 2]) 
                 
         # Use EMA Model
         if self.use_ema and (state != 'train'):

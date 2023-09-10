@@ -60,6 +60,7 @@ class GaussianNoiseScheduler(BasicNoiseScheduler):
         # NOTE: t == 0 means diffused for 1 step (https://github.com/hojonathanho/diffusion/blob/1e0dceb3b3495bbe19116a5e1b3596cd0706c543/diffusion_tf/diffusion_utils.py#L108)
         # NOTE: t == 0 means not diffused for cold-diffusion (in contradiction to the above comment) https://github.com/arpitbansal297/Cold-Diffusion-Models/blob/c828140b7047ca22f995b99fbcda360bc30fc25d/denoising-diffusion-pytorch/denoising_diffusion_pytorch/denoising_diffusion_pytorch.py#L361
         x_T = self.x_final(x_0) if x_T is None else x_T 
+        ch = x_0.shape[1]
         # ndim = x_0.ndim
         # x_t = (self.extract(self.sqrt_alphas_cumprod, t, ndim)*x_0 + 
         #         self.extract(self.sqrt_one_minus_alphas_cumprod, t, ndim)*x_T)
@@ -70,7 +71,9 @@ class GaussianNoiseScheduler(BasicNoiseScheduler):
             elif tb >= self.T:
                 return x_T[b] 
             else:
-                return self.sqrt_alphas_cumprod[tb] * x_0[b] + self.sqrt_one_minus_alphas_cumprod[tb] * x_T[b]
+                x_0[b, :ch] *= self.sqrt_alphas_cumprod[tb]
+                x_0[b, :ch] += self.sqrt_one_minus_alphas_cumprod[tb] * x_T[b]
+                return x_0[b]
         x_t = torch.stack([clipper(b) for b in range(t.shape[0])]) 
         return x_t 
     

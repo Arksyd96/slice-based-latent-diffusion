@@ -118,6 +118,7 @@ class BRATSDataModule(LightningDataModule):
 
     def setup(self, stage=None):
         data = torch.from_numpy(np.load(self.data_dir, allow_pickle=True))
+        
         if len(self.drop_channels) > 0:
             data = data[:, [i for i in range(data.shape[1]) if i not in self.drop_channels]]
 
@@ -125,11 +126,11 @@ class BRATSDataModule(LightningDataModule):
         for idx in tqdm(range(data.shape[0]), desc="Normalizing data", position=0, leave=True):
             data[idx, :] = normalize(data[idx, :], self.norm)
 
+        data = data.permute(0, 4, 1, 2, 3) # depth first
+        
         # slicing the data
         if self.slice_wise:
-            N, C, W, H, D = data.shape
-            
-            data = data.permute(0, 4, 1, 2, 3) # depth first
+            N, D, C, W, H = data.shape
 
             # merging depth and batch dimension
             data = data.reshape(N * D, C, W, H)

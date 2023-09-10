@@ -40,7 +40,7 @@ if __name__ == "__main__":
     # --------------- Logger --------------------
     logger = wandb_logger.WandbLogger(
         project='slice-based-latent-diffusion', 
-        name='diffusion-training (3D avec mask embedder [Criann])',
+        name='diffusion-training (test 3 ch)',
         save_dir=save_dir
         # id='24hyhi7b',
         # resume="must"
@@ -58,17 +58,16 @@ if __name__ == "__main__":
         # rotation        = (0, 90),
         # random_crop_size = (96, 96),
         dtype           = torch.float32,
-        slice_wise      = False
+        slice_wise      = False,
+        drop_channels   = [1] # image only
     )
 
 
     # ------------ Initialize Model ------------
-    cond_embedder = ConditionMLP 
+    cond_embedder = None 
     # cond_embedder = LabelEmbedder
     cond_embedder_kwargs = {
-        'in_features': 4096,
-        'out_features': 2048,
-        'hidden_dim': 512
+        # ...
     }
  
 
@@ -80,8 +79,8 @@ if __name__ == "__main__":
 
     noise_estimator = UNet
     noise_estimator_kwargs = {
-        'in_ch': 4, 
-        'out_ch': 4, 
+        'in_ch': 4, # takes also the index channel
+        'out_ch': 3,  
         'spatial_dims': 2,
         'hid_chs': [256, 256, 512, 1024],
         'kernel_sizes': [3, 3, 3, 3],
@@ -108,11 +107,9 @@ if __name__ == "__main__":
     # ------------ Initialize Latent Space  ------------
     latent_embedder = VAE
     # latent_embedder_checkpoint = './runs/first_stage-2023_08_11_230709 (best AE so far + mask)/epoch=489-step=807030.ckpt'
+    
     latent_embedder_checkpoint = './runs/first_stage-2023_08_25_144308 (VAE 3 ch)/last.ckpt'
-    mask_latent_embedder_checkpoint = './runs/mask-embedder-2023_09_09_192818-WLZR2X/last.ckpt'
-
     latent_embedder = latent_embedder.load_from_checkpoint(latent_embedder_checkpoint, time_embedder=None)
-    mask_latent_embedder = latent_embedder.load_from_checkpoint(mask_latent_embedder_checkpoint, time_embedder=None)
    
     # ------------ Initialize Pipeline ------------
     # pipeline = DiffusionPipeline.load_from_checkpoint(
@@ -126,7 +123,6 @@ if __name__ == "__main__":
         noise_scheduler=noise_scheduler, 
         noise_scheduler_kwargs = noise_scheduler_kwargs,
         latent_embedder=latent_embedder,
-        condition_latent_embedder=mask_latent_embedder,
         estimator_objective='x_T',
         estimate_variance=False, 
         use_self_conditioning=False, 
@@ -149,7 +145,7 @@ if __name__ == "__main__":
     )
 
     image_logger = ImageGenerationLogger(
-        noise_shape=(4, 128, 128),
+        noise_shape=(3, 128, 128),
         save_dir=str(save_dir),
         save_every_n_epochs=1,
         save=False
