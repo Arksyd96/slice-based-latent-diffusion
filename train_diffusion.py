@@ -152,7 +152,7 @@ if __name__ == "__main__":
         noise_shape=(4, 128, 128),
         save_dir=str(save_dir),
         save_every_n_epochs=1,
-        save=True
+        save=False
     )
 
     trainer = Trainer(
