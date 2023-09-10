@@ -50,7 +50,7 @@ if __name__ == "__main__":
         data_dir        = './data/brats_preprocessed.npy',
         train_ratio     = 1.0,
         norm            = 'centered-norm',
-        batch_size      = 32,
+        batch_size      = 16,
         num_workers     = 6,
         shuffle         = True,
         # horizontal_flip = 0.5,

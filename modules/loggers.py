@@ -114,7 +114,12 @@ class ImageGenerationLogger(pl.Callback):
             pl_module.eval()
 
             with torch.no_grad():
-                sample_img = pl_module.sample(num_samples=1, img_size=self.noise_shape, condition=None).detach()
+                condition = trainer.train_dataloader.dataset.sample(1) # 1x64x2x128x128
+                condition = condition[:, :, 1, None, ...] # 1x64x1x128x128
+                condition = pl_module.condition_latent_embedder.encode(condition.squeeze(0), emb=None) # 64x1x8x8
+                condition = condition.unsqueeze(0)
+
+                sample_img = pl_module.sample(num_samples=1, img_size=self.noise_shape, condition=condition).detach()
                 # => 1, 4, 128, 128
 
                 # sample_img = sample_img.squeeze(0).reshape(8, 64, 16, 16)
