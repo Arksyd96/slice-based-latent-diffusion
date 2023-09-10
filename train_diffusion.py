@@ -50,8 +50,8 @@ if __name__ == "__main__":
         data_dir        = './data/brats_preprocessed.npy',
         train_ratio     = 1.0,
         norm            = 'centered-norm',
-        batch_size      = 16,
-        num_workers     = 16,
+        batch_size      = 32,
+        num_workers     = 6,
         shuffle         = True,
         # horizontal_flip = 0.5,
         # vertical_flip   = 0.5,
@@ -78,8 +78,8 @@ if __name__ == "__main__":
 
     noise_estimator = UNet
     noise_estimator_kwargs = {
-        'in_ch': 3, 
-        'out_ch': 3, 
+        'in_ch': 4, 
+        'out_ch': 4, 
         'spatial_dims': 2,
         'hid_chs': [256, 256, 512, 1024],
         'kernel_sizes': [3, 3, 3, 3],
@@ -147,26 +147,29 @@ if __name__ == "__main__":
     )
 
     image_logger = ImageGenerationLogger(
-        noise_shape=(3, 128, 128),
+        noise_shape=(4, 128, 128),
         save_dir=str(save_dir),
         save_every_n_epochs=10,
         save=True
     )
 
     trainer = Trainer(
-        accelerator='gpu',
-        logger=logger,
-        # devices=4,
-        # nodes=2,
-        precision=32,
+        logger      = logger,
+        strategy    = 'ddp',
+        devices     = 4,
+        num_nodes   = 2,  
+        precision   = 32,
+        accelerator = 'gpu',
         # gradient_clip_val=0.5,
-        log_every_n_steps=1, 
-        # limit_train_batches=1000, 
-        min_epochs=100,
-        max_epochs=3000,
-        num_sanity_val_steps=0,
+        default_root_dir = save_dir,
+        enable_checkpointing = True,
+        log_every_n_steps = 1, 
+        min_epochs = 100,
+        max_epochs = 3000,
+        num_sanity_val_steps = 0,
         callbacks=[checkpointing, image_logger]
     )
+    
     
     # ---------------- Execute Training ----------------
     trainer.fit(pipeline, datamodule=datamodule)
