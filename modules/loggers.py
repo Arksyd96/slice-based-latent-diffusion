@@ -136,7 +136,7 @@ class ImageGenerationLogger(pl.Callback):
                 # # => 64, 2, 32, 32
                 # sample_img = sample_img.permute(1, 0, 2, 3)
 
-                sample_img = reverse_spatial_stack(sample_img, (16, 16), index_channel=False).squeeze(0)
+                sample_img = reverse_spatial_stack(sample_img, (16, 16), index_channel=True).squeeze(0)
 
                 sample_img = pl_module.latent_embedder.decode(sample_img, emb=None)
                 # => 64x2x128x128
