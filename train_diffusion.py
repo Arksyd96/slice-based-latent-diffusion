@@ -147,7 +147,7 @@ if __name__ == "__main__":
     image_logger = ImageGenerationLogger(
         noise_shape=(3, 128, 128),
         save_dir=str(save_dir),
-        save_every_n_epochs=1,
+        save_every_n_epochs=15,
         save=False
     )
 
