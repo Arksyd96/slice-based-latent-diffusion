@@ -25,14 +25,14 @@ class LabelEmbedder(nn.Module):
 
 
 class ConditionMLP(nn.Module):
-    def __init__(self, in_features, hidden_dim=512):
+    def __init__(self, in_features, out_features, hidden_dim=512):
         super(ConditionMLP, self).__init__()
         
         # MLP layers
         self.mlp = nn.Sequential(
             nn.Linear(in_features, hidden_dim),
             nn.ReLU(inplace=True),
-            nn.Linear(hidden_dim, hidden_dim),
+            nn.Linear(hidden_dim, out_features),
             nn.ReLU(inplace=True)
         )
         

@@ -66,12 +66,14 @@ if __name__ == "__main__":
     cond_embedder = ConditionMLP 
     # cond_embedder = LabelEmbedder
     cond_embedder_kwargs = {
-        'in_features': 2048
+        'in_features': 4096,
+        'out_features': 2048,
+        'hidden_dim': 512
     }
  
 
     time_embedder = TimeEmbbeding
-    time_embedder_kwargs ={
+    time_embedder_kwargs = {
         'emb_dim': 2048 # stable diffusion uses 4*model_channels (model_channels is about 256)
     }
 
