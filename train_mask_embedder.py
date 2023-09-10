@@ -57,9 +57,9 @@ if __name__ == "__main__":
         out_channels    = 1, 
         emb_channels    = 1,
         spatial_dims    = 2, # 2D or 3D
-        hid_chs         = [32, 64, 128, 256, 256], 
-        kernel_sizes    = [3, 3, 3, 3, 3],
-        strides         = [1, 2, 2, 2, 2],
+        hid_chs         = [32, 32, 64, 128, 256, 256], 
+        kernel_sizes    = [3, 3, 3, 3, 3, 3],
+        strides         = [1, 2, 2, 2, 2, 2],
         time_embedder   = None,
         deep_supervision = False,
         use_attention   = 'none', # ['none', 'none', 'none', 'spatial'],
