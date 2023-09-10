@@ -272,6 +272,8 @@ class DiffusionPipeline(BasicModel):
             x_T = self.noise_scheduler.estimate_x_T(x_t, x_0=pred, t=t, clip_x0=self.clip_x0)
             self_cond = x_T 
         elif self.estimator_objective == 'x_T':
+            if x_t.shape[1] != pred.shape[1]:
+                x_t = x_t[:, :pred.shape[1]]
             x_t_prior, x_0 = self.noise_scheduler.estimate_x_t_prior_from_x_T(x_t, t, pred, clip_x0=self.clip_x0, var_scale=pred_var_scale, cold_diffusion=cold_diffusion)
             x_T = pred 
             self_cond = x_0 
