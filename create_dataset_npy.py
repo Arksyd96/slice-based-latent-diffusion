@@ -21,9 +21,9 @@ if __name__ == "__main__":
     placeholder = np.zeros(shape=(
         args.n_samples,
         args.modalities.__len__(), 
+        args.target_shape[0], 
         args.target_shape[1], 
-        args.target_shape[2], 
-        args.target_shape[0]
+        args.target_shape[2]
     ))
 
     for idx, instance in enumerate(tqdm(os.listdir(args.data_path)[: args.n_samples], position=0, leave=True)):
@@ -34,15 +34,16 @@ if __name__ == "__main__":
 
         # Compute the scaling factors (output will not be exactly the same as defined in OUTPUT_SHAPE)
         orig_shape = volumes[args.modalities[0]].shape
-        scale_factor = (orig_shape[0] / args.target_shape[1], # height
-                        orig_shape[1] / args.target_shape[2], # width
-                        orig_shape[2] / args.target_shape[0]) # depth
+        scale_factor = (orig_shape[0] / args.target_shape[0], # height
+                        orig_shape[1] / args.target_shape[1], # width
+                        orig_shape[2] / args.target_shape[2]) # depth
 
         # Resample the image using trilinear interpolation
         # Drop the last extra rows/columns/slices to get the exact desired output size
         for _, m in enumerate(args.modalities):
             volumes[m] = resample_to_output(volumes[m], voxel_sizes=scale_factor, order=1).get_fdata()
-            volumes[m] = volumes[m][:args.target_shape[1], :args.target_shape[2], :args.target_shape[0]]
+            volumes[m] = volumes[m][:args.target_shape[0], :args.target_shape[1], :args.target_shape[2]]
+
 
         # binarizing the mask (for simplicity), you can comment out this to keep all labels
         if args.binarize and 'seg' in args.modalities:
@@ -55,5 +56,5 @@ if __name__ == "__main__":
     
     print('Saving dataset as npy file...')    
     # saving the dataset as a npy file
-    np.save(args.save_path, placeholder)
+    np.save('{}/brats_preprocessed.npy'.format(args.save_path), placeholder)
     print('Done!')

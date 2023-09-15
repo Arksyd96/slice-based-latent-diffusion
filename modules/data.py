@@ -117,7 +117,9 @@ class BRATSDataModule(LightningDataModule):
         self.reduce_empty_slices = kwargs.get('reduce_empty_slices', False)
 
     def setup(self, stage=None):
+        print('Loading .npy file ...')
         data = torch.from_numpy(np.load(self.data_dir, allow_pickle=True))
+        print('Data loaded')
         
         if len(self.drop_channels) > 0:
             data = data[:, [i for i in range(data.shape[1]) if i not in self.drop_channels]]
