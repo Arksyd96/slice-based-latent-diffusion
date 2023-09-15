@@ -22,7 +22,7 @@ class BasicNoiseScheduler(nn.Module):
     def sample(self, x_0, channels=None):
         """Randomly sample t from [0,T] and return x_t and x_T based on x_0"""
         t = torch.randint(0, self.T, (x_0.shape[0],), dtype=torch.long, device=x_0.device) # NOTE: High is exclusive, therefore [0, T-1]
-        x_T = self.x_final(x_0 if channels == None else x_0[:, channels]) 
+        x_T = self.x_final(x_0) 
         return self.estimate_x_t(x_0, t, x_T), x_T, t
     
     def estimate_x_t_prior_from_x_T(self, x_T, t, **kwargs):

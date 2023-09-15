@@ -164,12 +164,20 @@ class BRATSDataModule(LightningDataModule):
             self.val_dataset = BRATSDataset(val_images, val_positions)
         
         else:
-            train_images, val_images = train_test_split(
-                data, train_size=self.train_ratio, random_state=42
-            ) if self.train_ratio < 1 else (data, [])
+            # loading radiomics
+            radiomics = np.load('./data/radiomics.npy', allow_pickle=True).item()
 
-            self.train_dataset = BRATSDataset(train_images, **self.dataset_kwargs)
-            self.val_dataset = BRATSDataset(val_images)
+            labels = np.empty((data.shape[0], radiomics.keys().__len__()))
+            for idx in tqdm(range(data.shape[0]), desc="Loading radiomics", position=0, leave=True):
+                labels[idx, :] = np.array([radiomics[key][idx] for key in radiomics.keys()])
+            labels = torch.from_numpy(labels).type(self.dataset_kwargs['dtype'])
+
+            train_images, val_images, train_labels, val_labels = train_test_split(
+                data, labels, train_size=self.train_ratio, random_state=42, stratify=labels
+            ) if self.train_ratio < 1 else (data, [], labels, [])
+
+            self.train_dataset = BRATSDataset(train_images, train_labels, **self.dataset_kwargs)
+            self.val_dataset = BRATSDataset(val_images, val_labels)
 
         log = """
         DataModule setup complete.

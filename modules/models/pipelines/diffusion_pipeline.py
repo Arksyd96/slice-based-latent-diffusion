@@ -34,6 +34,7 @@ class DiffusionPipeline(BasicModel):
         lr_scheduler_kwargs={}, 
         loss=torch.nn.L1Loss,
         loss_kwargs={},
+        std_norm=None,
         sample_every_n_steps = 500
         ):
         # self.save_hyperparameters(ignore=['noise_estimator', 'noise_scheduler']) 
@@ -61,6 +62,7 @@ class DiffusionPipeline(BasicModel):
         self.do_input_centering = do_input_centering
         self.estimate_variance = estimate_variance
         self.clip_x0 = clip_x0
+        self.std_norm = std_norm
 
         self.use_ema = use_ema
         if use_ema:
@@ -71,7 +73,7 @@ class DiffusionPipeline(BasicModel):
     def _step(self, batch, batch_idx, state, step):
         results = {}
         x_0 = batch[0]
-        condition = None
+        condition = batch[1] if len(batch) > 1 else None
 
         # Embed into latent space or normalize 
         batch = []
@@ -83,8 +85,12 @@ class DiffusionPipeline(BasicModel):
                     batch.append(volume)
             
             x_0 = torch.stack(batch)
-            x_0 = spatially_stack_latents(x_0, (8, 8), index_channel=True) # => [B, 4, 128, 128]
-            batch.clear()
+            x_0 = x_0.permute(0, 2, 1, 3, 4) # => [B, 2, 64, 16, 16]
+            # x_0 = spatially_stack_latents(x_0, (8, 8), index_channel=False) # => [B, 2, 128, 128]
+
+            # std normalization
+            if self.std_norm is not None:
+                x_0 = x_0.div(self.std_norm)
 
         
         if self.do_input_centering:
@@ -97,9 +103,7 @@ class DiffusionPipeline(BasicModel):
         # Sample Noise
         with torch.no_grad():
             # Randomly selecting t [0,T-1] and compute x_t (noisy version of x_0 at t)
-            x_t, x_T, t = self.noise_scheduler.sample(x_0, channels=[0, 1, 2]) 
-            # x_t en sortie sera de la taille de x_0 mais avec du bruit que sur les channels 0, 1, 2
-            # x_T aura un nombre de channels de taille du tableau [0, 1, 2]
+            x_t, x_T, t = self.noise_scheduler.sample(x_0)
                 
         # Use EMA Model
         if self.use_ema and (state != 'train'):
@@ -154,7 +158,7 @@ class DiffusionPipeline(BasicModel):
         # ----------------- Variance Loss --------------
         if self.estimate_variance:
             # var_scale = var_scale.clamp(-1, 1) # Should not be necessary 
-            var_scale = (pred_var+1)/2 # Assumed to be in [-1, 1] -> [0, 1] 
+            var_scale = (pred_var + 1) / 2 # Assumed to be in [-1, 1] -> [0, 1] 
             pred_logvar = self.noise_scheduler.estimate_variance_t(t, x_t.ndim, log=True, var_scale=var_scale)
             # pred_logvar = pred_var  # If variance is estimated directly 
 
@@ -199,7 +203,7 @@ class DiffusionPipeline(BasicModel):
 
         # ----------------- Log Scalars ----------------------
         for metric_name, metric_val in results.items():
-            self.log(f"{state}/{metric_name}", metric_val, batch_size=x_0.shape[0], on_step=True, on_epoch=True, sync_dist=True)           
+            self.log(f"{state}/{metric_name}", metric_val, batch_size=x_0.shape[0], on_step=True, on_epoch=True, sync_dist=True, prog_bar=True)           
         
         
         # #------------------ Log Image -----------------------
@@ -296,7 +300,6 @@ class DiffusionPipeline(BasicModel):
             
         for i, t in tqdm(enumerate(reversed(timesteps_array))):
             # UNet prediction
-            x_t = add_index_channel(x_t, (8, 8))
             x_t, x_0, x_T, self_cond = self(x_t, t.expand(x_t.shape[0]), condition, self_cond=self_cond, **kwargs)
             self_cond = self_cond if self.use_self_conditioning else None  
         
@@ -316,7 +319,7 @@ class DiffusionPipeline(BasicModel):
         return x_t # Should be x_0 in final step (t=0)
 
     @torch.no_grad()
-    def sample(self, num_samples, img_size, condition=None, index_channel=False, **kwargs):
+    def sample(self, num_samples, img_size, condition=None, **kwargs):
         template = torch.zeros((num_samples, *img_size), device=self.device)
         x_T = self.noise_scheduler.x_final(template)
         x_0 = self.denoise(x_T, condition=condition, **kwargs)

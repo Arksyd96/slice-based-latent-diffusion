@@ -17,8 +17,8 @@ from modules.models.pipelines import DiffusionPipeline
 from modules.models.estimators import UNet
 from modules.models.noise_schedulers import GaussianNoiseScheduler
 from modules.models.embedders import TimeEmbbeding
+from modules.models.embedders.latent_embedders import VAEGAN
 from modules.models.embedders.cond_embedders import ConditionMLP
-from modules.models.embedders.latent_embedders import VAE
 from modules.loggers import ImageGenerationLogger
 
 import torch.multiprocessing
@@ -40,8 +40,8 @@ if __name__ == "__main__":
     # --------------- Logger --------------------
     logger = wandb_logger.WandbLogger(
         project='slice-based-latent-diffusion', 
-        name='diffusion-training (test 3 ch)',
-        save_dir=save_dir
+        name='diffusion-training (3D + conditionnement)',
+        save_dir=save_dir,
         # id='24hyhi7b',
         # resume="must"
     )
@@ -50,8 +50,8 @@ if __name__ == "__main__":
         data_dir        = './data/brats_preprocessed.npy',
         train_ratio     = 1.0,
         norm            = 'centered-norm',
-        batch_size      = 8,
-        num_workers     = 6,
+        batch_size      = 16,
+        num_workers     = 32,
         shuffle         = True,
         # horizontal_flip = 0.5,
         # vertical_flip   = 0.5,
@@ -64,25 +64,27 @@ if __name__ == "__main__":
 
 
     # ------------ Initialize Model ------------
-    cond_embedder = None 
+    cond_embedder = ConditionMLP 
     # cond_embedder = LabelEmbedder
     cond_embedder_kwargs = {
-        # ...
+        'in_features': 12, 
+        'out_features': 512, 
+        'hidden_dim': 256
     }
  
 
     time_embedder = TimeEmbbeding
     time_embedder_kwargs = {
-        'emb_dim': 2048 # stable diffusion uses 4*model_channels (model_channels is about 256)
+        'emb_dim': 512 # stable diffusion uses 4*model_channels (model_channels is about 256)
     }
 
 
     noise_estimator = UNet
     noise_estimator_kwargs = {
-        'in_ch': 4, # takes also the index channel
-        'out_ch': 3,  
-        'spatial_dims': 2,
-        'hid_chs': [256, 256, 512, 1024],
+        'in_ch': 2, # takes also the index channel
+        'out_ch': 2,  
+        'spatial_dims': 3,
+        'hid_chs': [128, 256, 512, 512],
         'kernel_sizes': [3, 3, 3, 3],
         'strides': [1, 2, 2, 2],
         'time_embedder': time_embedder,
@@ -101,21 +103,22 @@ if __name__ == "__main__":
         'timesteps': 1000,
         'beta_start': 0.002, # 0.0001, 0.0015
         'beta_end': 0.02, # 0.01, 0.0195
-        'schedule_strategy': 'cosine'
+        'schedule_strategy': 'scaled_linear'
     }
     
     # ------------ Initialize Latent Space  ------------
-    latent_embedder = VAE
+    latent_embedder = VAEGAN
     # latent_embedder_checkpoint = './runs/first_stage-2023_08_11_230709 (best AE so far + mask)/epoch=489-step=807030.ckpt'
     
-    latent_embedder_checkpoint = './runs/first_stage-2023_08_25_144308 (VAE 3 ch)/last.ckpt'
+    latent_embedder_checkpoint = './runs/first_stage-2023_08_23_163957 (vae gan 2 ch)/last.ckpt'
     latent_embedder = latent_embedder.load_from_checkpoint(latent_embedder_checkpoint, time_embedder=None)
    
     # ------------ Initialize Pipeline ------------
-    # pipeline = DiffusionPipeline.load_from_checkpoint(
-    #     './runs/2023_08_16_113818 (continuity)/epoch=999-step=63000.ckpt', 
-    #     latent_embedder=latent_embedder
-    # )
+    pipeline = DiffusionPipeline.load_from_checkpoint(
+        './runs/diffusion-2023_09_14_165250/last.ckpt',
+        latent_embedder=latent_embedder,
+        std_norm = 0.5601330399513245
+    )
 
     pipeline = DiffusionPipeline(
         noise_estimator=noise_estimator, 
@@ -129,7 +132,8 @@ if __name__ == "__main__":
         use_ema=False,
         classifier_free_guidance_dropout=0.0, # Disable during training by setting to 0
         do_input_centering=False,
-        clip_x0=False
+        clip_x0=False,
+        std_norm = 0.5601330399513245
     )
     
     # pipeline_old = pipeline.load_from_checkpoint('runs/2022_11_27_085654_chest_diffusion/last.ckpt')
@@ -145,17 +149,17 @@ if __name__ == "__main__":
     )
 
     image_logger = ImageGenerationLogger(
-        noise_shape=(3, 128, 128),
+        noise_shape=(2, 64, 16, 16),
         save_dir=str(save_dir),
-        save_every_n_epochs=15,
-        save=False
+        save_every_n_epochs=10,
+        save=True
     )
 
     trainer = Trainer(
         logger      = logger,
-        strategy    = 'ddp_find_unused_parameters_true',
-        devices     = 4,
-        num_nodes   = 2,  
+        # strategy    = 'ddp_find_unused_parameters_true',
+        # devices     = 4,
+        # num_nodes   = 2,  
         precision   = 32,
         accelerator = 'gpu',
         # gradient_clip_val=0.5,
@@ -163,8 +167,9 @@ if __name__ == "__main__":
         enable_checkpointing = True,
         log_every_n_steps = 1, 
         min_epochs = 100,
-        max_epochs = 3000,
+        max_epochs = 1500,
         num_sanity_val_steps = 0,
+        # fast_dev_run = 10,
         callbacks=[checkpointing, image_logger]
     )
     

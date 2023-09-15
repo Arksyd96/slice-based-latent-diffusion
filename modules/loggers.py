@@ -114,28 +114,36 @@ class ImageGenerationLogger(pl.Callback):
             pl_module.eval()
 
             with torch.no_grad():
-                sample_img = pl_module.sample(num_samples=1, img_size=self.noise_shape).detach()
+                condition = trainer.train_dataloader.dataset.sample(1)[1]
+                condition = condition.to(pl_module.device, torch.float32)
 
-                sample_img = reverse_spatial_stack(sample_img, (16, 16), index_channel=False).squeeze(0)
+                sample_img = pl_module.sample(num_samples=1, img_size=self.noise_shape, condition=condition).detach()
+                sample_img = sample_img.permute(0, 2, 1, 3, 4).squeeze(0)
+
+                if pl_module.std_norm:
+                    sample_img = sample_img.mul(pl_module.std_norm)
+
+                # sample_img = reverse_spatial_stack(sample_img, (16, 16), index_channel=False).squeeze(0)
 
                 sample_img = pl_module.latent_embedder.decode(sample_img, emb=None)
-                # => 64x2x128x128
 
                 # selecting subset of the volume to display
                 sample_img = sample_img[::4, ...] # 64 // 4 = 16
 
                 if self.save:
-                    save_image(sample_img[:, 0, None], '{}/sample_images_{}.png'.format(self.save_dir, trainer.current_epoch), normalize=True)
-                    save_image(sample_img[:, 1, None], '{}/sample_masks_{}.png'.format(self.save_dir, trainer.current_epoch), normalize=True)
+                    save_image(sample_img, '{}/sample_images_{}.png'.format(self.save_dir, trainer.current_epoch), normalize=True)
 
                 sample_img = torch.cat([
                     torch.hstack([img for img in sample_img[:, idx, ...]]) for idx in range(sample_img.shape[1])
                 ], dim=0)
                 sample_img = sample_img.add(1).div(2).mul(255).clamp(0, 255).to(torch.uint8)
+
+                # format into text the condition :
+                log_condition = ' | '.join(['{:.2f}'.format(feature) for feature in condition[0]])
                 
                 wandb.log({
                     'Reconstruction examples': wandb.Image(
                         sample_img.cpu().numpy(), 
-                        caption='Epoch : {}'.format(trainer.current_epoch)
+                        caption='Condition : {}'.format(log_condition)
                     )
                 })
