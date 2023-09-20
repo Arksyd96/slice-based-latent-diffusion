@@ -14,6 +14,7 @@ if __name__ == "__main__":
     parser.add_argument('-t', '--target-shape', type=int, nargs='+', default=[128, 128, 64], help='Target shape to resize the volumes')
     parser.add_argument('-b', '--binarize', action='store_true', help='Binarize the segmentation mask')
     parser.add_argument('-s', '--save-path', type=str, default='./', help='Path to save the npy file')
+    parser.add_argument('-z', '--npz', action='store_true', help='Save the dataset as a npz file')
     args = parser.parse_args()
 
 
@@ -56,5 +57,11 @@ if __name__ == "__main__":
     
     print('Saving dataset as npy file...')    
     # saving the dataset as a npy file
-    np.save('{}/brats_preprocessed.npy'.format(args.save_path), placeholder)
+    if args.npz:
+        np.savez_compressed(
+            '{}/brats_preprocessed.npz'.format(args.save_path), 
+            data=placeholder,
+        )
+    else:
+        np.save('{}/brats_preprocessed.npy'.format(args.save_path), placeholder)
     print('Done!')

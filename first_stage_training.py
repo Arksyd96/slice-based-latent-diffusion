@@ -40,7 +40,8 @@ if __name__ == "__main__":
         rotation        = (0, 90),
         # random_crop_size = (96, 96),
         dtype           = torch.float32,
-        slice_wise      = True
+        slice_wise      = True,
+        reduce_empty_slices = True
     )
 
 

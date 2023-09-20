@@ -6,6 +6,10 @@ from pytorch_lightning import LightningDataModule
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 
+from nibabel import load
+from nibabel.processing import resample_to_output
+import os
+
 class IdentityDataset(torch.utils.data.Dataset):
     """
         Simple dataset that returns the same data (d0, d1, ..., dn)
@@ -80,13 +84,16 @@ class BRATSDataset(torch.utils.data.Dataset):
 class BRATSDataModule(LightningDataModule):
     def __init__(
         self,
-        data_dir: str, # should target an npy file, make sure to process your data first on an npy file
+        data_dir: str, # should target the root folder where the nii.gz files are stored
+        # n_samples: int = None,
+        # modalities: list = ['t1', 't1ce', 't2', 'flair', 'seg'],
+        # target_shape: tuple = (240, 240, 128),
+        # binarize: bool = False,
         train_ratio: float = 0.8,
         norm = 'min-max',
         batch_size: int = 32,
         num_workers: int = 4,
         shuffle: bool = True,
-        resize = None,
         horizontal_flip = None,
         vertical_flip = None, 
         rotation = None,
@@ -97,15 +104,24 @@ class BRATSDataModule(LightningDataModule):
         **kwargs
     ):
         super().__init__()
+        # assert train_ratio <= 1.0, "train_ratio must be between 0 and 1"
+        # assert norm in ['centered-norm', 'z-score', 'min-max'], "Invalid normalization method"
+        # assert len(modalities) > 0, "At least one modality must be specified"
+        # assert len(target_shape) == 3, "target_shape must be a tuple of length 3"
+
         self.dataset_kwargs = {
-            "resize": resize,
             "horizontal_flip": horizontal_flip,
             "vertical_flip": vertical_flip, 
             "random_crop_size": random_crop_size,
             "rotation": rotation,
             "dtype": dtype
         }
+
         self.data_dir = data_dir
+        # self.n_samples = n_samples
+        # self.modalities = modalities
+        # self.target_shape = target_shape
+        # self.binarize = binarize
         self.norm = norm
         self.batch_size = batch_size
         self.num_workers = num_workers
@@ -113,20 +129,69 @@ class BRATSDataModule(LightningDataModule):
         self.slice_wise = slice_wise
         self.train_ratio = train_ratio
         self.verbose = verbose
-        self.drop_channels = kwargs.get('drop_channels', [])
         self.reduce_empty_slices = kwargs.get('reduce_empty_slices', False)
 
-    def setup(self, stage=None):
-        print('Loading .npy file ...')
-        data = torch.from_numpy(np.load(self.data_dir, allow_pickle=True))
-        print('Data loaded')
-        
-        if len(self.drop_channels) > 0:
-            data = data[:, [i for i in range(data.shape[1]) if i not in self.drop_channels]]
+    # def prepare_data(self) -> None:
+    #     """
+    #         This method is called only once and on 1 GPU only.
+    #         This method can be used to load BRATS dataset from NiFTI files independently from any preprecessings applied to it.
+    #     """
+    #     print('Loading dataset from NiFTI files...')
+    #     self.data = np.empty(shape=(
+    #         self.n_samples,
+    #         self.modalities.__len__(), 
+    #         self.target_shape[0], 
+    #         self.target_shape[1], 
+    #         self.target_shape[2]
+    #     ))
+    
+    #     filename, max = '', 0
+    #     for idx, instance in enumerate(tqdm(os.listdir(self.data_dir)[:self.n_samples], position=0, leave=True)):
+    #         # loading models
+    #         volumes = {}
+    #         for _, m in enumerate(self.modalities):
+    #             volumes[m] = load(os.path.join(self.data_dir, instance, instance + f'_{m}.nii.gz'))
 
-        # normalizing the data
-        for idx in tqdm(range(data.shape[0]), desc="Normalizing data", position=0, leave=True):
-            data[idx, :] = normalize(data[idx, :], self.norm)
+    #         # Compute the scaling factors (output will not be exactly the same as defined in OUTPUT_SHAPE)
+    #         orig_shape = volumes[self.modalities[0]].shape
+    #         scale_factor = (orig_shape[0] / self.target_shape[0], # height
+    #                         orig_shape[1] / self.target_shape[1], # width
+    #                         orig_shape[2] / self.target_shape[2]) # depth
+
+    #         # Resample the image using trilinear interpolation
+    #         # Drop the last extra rows/columns/slices to get the exact desired output size
+    #         for _, m in enumerate(self.modalities):
+    #             volumes[m] = resample_to_output(volumes[m], voxel_sizes=scale_factor, order=1).get_fdata()
+    #             volumes[m] = volumes[m][:self.target_shape[0], :self.target_shape[1], :self.target_shape[2]]
+
+    #         if volumes['flair'].max() > max:
+    #             max = volumes['flair'].max()
+    #             filename = instance
+
+
+    #         # binarizing the mask (for simplicity), you can comment out this to keep all labels
+    #         if self.binarize and 'seg' in self.modalities:
+    #             volumes['seg'] = (volumes['seg'] > 0).astype(np.float32)
+
+    #         # saving models
+    #         for idx_m, m in enumerate(self.modalities):
+    #             self.data[idx, idx_m, ...] = volumes[m]
+
+    #     print('instance {}, max {}'.format(filename, max))
+
+    def setup(self, stage=None):        
+        """
+            This method is called on every GPU (process) available and can be used to perform any setup necessary for all GPUs.
+            Customize this method to your needs (preprocessings).
+        """
+        print('Loading data from npz file ...')
+        self.data = np.load(self.data_dir, allow_pickle=True)
+        self.data = self.data['data']
+        self.data = torch.from_numpy(self.data)
+        print('Data loaded.')
+
+        for idx in tqdm(range(self.data.shape[0]), desc="Normalizing data", position=0, leave=True):
+            self.data[idx, :] = normalize(self.data[idx, :], self.norm)
 
         data = data.permute(0, 4, 1, 2, 3) # depth first
         
