@@ -30,20 +30,18 @@ if __name__ == "__main__":
 
     # ------------ Load Data ----------------
     datamodule = BRATSDataModule(
-        data_dir        = './data/brats_preprocessed.npy',
-        train_ratio     = 0.95,
-        batch_size      = 32,
+        data_dir        = './data/first_stage_dataset_240x240.npy',
+        train_ratio     = 0.9,
+        norm            = 'centered-norm', 
+        batch_size      = 16,
         num_workers     = 32,
         shuffle         = True,
         horizontal_flip = 0.5,
         vertical_flip   = 0.5,
         rotation        = (0, 90),
         # random_crop_size = (96, 96),
-        dtype           = torch.float32,
-        slice_wise      = True,
-        reduce_empty_slices = True
+        dtype           = torch.float32
     )
-
 
     # ------------ Initialize Model ------------
     # model = VAE(
@@ -62,19 +60,23 @@ if __name__ == "__main__":
     #     optimizer_kwargs = {'lr': 1e-5}
     # )
 
-    model = VAEGAN(
-        in_channels     = 2, 
-        out_channels    = 2, 
-        emb_channels    = 4,
-        spatial_dims    = 2,
-        hid_chs         = [128, 256, 512, 512],
-        kernel_sizes    = [3, 3, 3, 3],
-        strides         = [1, 2, 2, 2],
-        time_embedder   = None,
-        deep_supervision = False,
-        use_attention   = ['none', 'none', 'none', 'spatial'],
-        start_gan_train_step = 30001,
-        embedding_loss_weight = 1e-6
+    # model = VAEGAN(
+    #     in_channels     = 2, 
+    #     out_channels    = 2, 
+    #     emb_channels    = 4,
+    #     spatial_dims    = 2,
+    #     hid_chs         = [128, 256, 512, 512],
+    #     kernel_sizes    = [3, 3, 3, 3],
+    #     strides         = [1, 2, 2, 2],
+    #     time_embedder   = None,
+    #     deep_supervision = False,
+    #     use_attention   = ['none', 'none', 'none', 'spatial'],
+    #     start_gan_train_step = 30001,
+    #     embedding_loss_weight = 1e-6
+    # )
+
+    model = VAEGAN.load_from_checkpoint(
+        './runs/first_stage-2023_09_22_163157 (vae gan seg 4 ch)/last.ckpt'
     )
     
 
@@ -89,10 +91,10 @@ if __name__ == "__main__":
     )
     
     image_logger = ImageReconstructionLogger(
-        n_samples = 6,
+        n_samples = 10,
+        sample_every_n_steps = 1000, 
         save      = True,
-        save_dir  = save_dir,
-        is_3d     = True
+        save_dir  = save_dir
     )
         
     trainer = Trainer(

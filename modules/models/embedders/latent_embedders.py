@@ -892,11 +892,8 @@ class VAEGAN(VeryBasicModel):
         perceptual_loss_weight = 1.0,
         time_embedder = None,
         time_embedder_kwargs = {},
-        
-        
         start_gan_train_step = 50000, # NOTE step increase with each optimizer 
         gan_loss_weight: float = 1.0, # = discriminator  
-        
         optimizer_vqvae=torch.optim.Adam, 
         optimizer_gan=torch.optim.Adam, 
         optimizer_vqvae_kwargs={'lr':1e-6}, # 'weight_decay':1e-2, {'lr':1e-6, 'betas':(0.5, 0.9)}
@@ -993,8 +990,8 @@ class VAEGAN(VeryBasicModel):
             gan_loss = gan_loss * lambda_weight
 
         else:
-            gan_loss = 0 # torch.tensor([0.0], requires_grad=True, device=target.device)
-            lambda_weight = 0
+            gan_loss = torch.tensor(0, dtype=torch.float32) # torch.tensor([0.0], requires_grad=True, device=target.device)
+            lambda_weight = torch.tensor(0, dtype=torch.float32)
 
         with torch.no_grad():
             self.log(f"train/g_loss_{depth}", gan_loss, on_step=True, on_epoch=True)
@@ -1019,7 +1016,7 @@ class VAEGAN(VeryBasicModel):
         ae_opt, disc_opt = self.optimizers()
         
         # ------------------------- Get Source/Target ---------------------------
-        x, t = batch
+        x, = batch
         target = x
         
         if self.vqvae.time_embedder is None:
