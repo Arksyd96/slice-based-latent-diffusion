@@ -117,7 +117,7 @@ class BRATSDataModule(LightningDataModule):
 
     def prepare_data(self) -> None:
         self.data = np.load(self.data_dir, allow_pickle=True)
-        self.data = torch.from_numpy(self.data)
+        self.data = torch.from_numpy(self.data[:, 0, None, ...])
     
     def setup(self, stage=None):        
         train_images, val_images = train_test_split(

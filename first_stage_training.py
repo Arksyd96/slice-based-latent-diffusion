@@ -24,7 +24,7 @@ if __name__ == "__main__":
     # --------------- Logger --------------------
     logger = wandb_logger.WandbLogger(
         project = 'slice-based-latent-diffusion', 
-        name    = 'first-stage VAE Mask (240x240)',
+        name    = 'first-stage VAE Mask (240x240 VAE 4ch)',
         save_dir = save_dir
     )
 
@@ -44,21 +44,21 @@ if __name__ == "__main__":
     )
 
     # ------------ Initialize Model ------------
-    # model = VAE(
-    #     in_channels     = 1, 
-    #     out_channels    = 1, 
-    #     emb_channels    = 1,
-    #     spatial_dims    = 3, # 2D or 3D
-    #     hid_chs         = [32, 64, 128, 256], 
-    #     kernel_sizes    = [3, 3, 3, 3],
-    #     strides         = [1, 2, 2, 2],
-    #     time_embedder   = None,
-    #     deep_supervision = False,
-    #     use_attention   = 'none', # ['none', 'none', 'none', 'spatial'],
-    #     loss            = torch.nn.MSELoss,
-    #     embedding_loss_weight = 1e-6,
-    #     optimizer_kwargs = {'lr': 1e-5}
-    # )
+    model = VAE(
+        in_channels     = 1, 
+        out_channels    = 1, 
+        emb_channels    = 3,
+        spatial_dims    = 2, # 2D or 3D
+        hid_chs         = [128, 256, 512, 512], 
+        kernel_sizes    = [3, 3, 3, 3],
+        strides         = [1, 2, 2, 2],
+        time_embedder   = None,
+        deep_supervision = False,
+        use_attention   = 'none', # ['none', 'none', 'none', 'spatial'],
+        loss            = torch.nn.MSELoss,
+        embedding_loss_weight = 1e-6,
+        optimizer_kwargs = {'lr': 1e-5}
+    )
 
     # model = VAEGAN(
     #     in_channels     = 2, 
@@ -75,15 +75,10 @@ if __name__ == "__main__":
     #     embedding_loss_weight = 1e-6
     # )
 
-    model = VAEGAN.load_from_checkpoint(
-        './runs/first_stage-2023_09_22_163157 (vae gan seg 4 ch)/last.ckpt'
-    )
-    
-
     # -------------- Training Initialization ---------------
     checkpointing = ModelCheckpoint(
         dirpath     = save_dir, # dirpath
-        monitor     = 'val/ae_loss_epoch',
+        monitor     = 'val/loss', # 'val/ae_loss_epoch',
         every_n_epochs = 10,
         save_last   = True,
         save_top_k  = 1,
@@ -92,7 +87,7 @@ if __name__ == "__main__":
     
     image_logger = ImageReconstructionLogger(
         n_samples = 10,
-        sample_every_n_steps = 1000, 
+        sample_every_n_steps = 500, 
         save      = True,
         save_dir  = save_dir
     )

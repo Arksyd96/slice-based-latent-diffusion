@@ -817,7 +817,7 @@ class VAE(BasicModel):
         interpolation_mode = 'nearest-exact'
         
         # compute reconstruction loss
-        perceptual_loss = self.perception_loss(pred[:, 0, None], target[:, 0, None]) if self.use_perceptual_loss else 0
+        perceptual_loss = self.perception_loss(pred, target) if self.use_perceptual_loss else 0
         ssim_loss = self.ssim_loss(pred, target) if self.use_ssim_loss else 0
         pixel_loss = self.loss_fct(pred, target)
 
@@ -830,7 +830,7 @@ class VAE(BasicModel):
 
         for i, pred_i in enumerate(pred_vertical): 
             target_i = F.interpolate(target, size=pred_i.shape[2:], mode=interpolation_mode, align_corners=None)  
-            rec_loss_i  = self.loss_fct(pred_i, target_i) + self.perception_loss(pred_i[:, 0, None], target_i[:, 0, None]) + self.ssim_loss(pred_i, target_i)
+            rec_loss_i  = self.loss_fct(pred_i, target_i) + self.perception_loss(pred_i, target_i) + self.ssim_loss(pred_i, target_i)
             # rec_loss_i = rec_loss_i/ torch.exp(self.logvar_ver[i]) + self.logvar_ver[i] 
             loss += torch.sum(rec_loss_i) / pred.shape[0]  
 
@@ -839,7 +839,7 @@ class VAE(BasicModel):
     def _step(self, batch, batch_idx, split, step):
         # ------------------------- Get Source/Target ---------------------------
         # x, t = batch
-        x = batch[0]
+        x, = batch
         target = x
         
         if self.time_embedder is None:
