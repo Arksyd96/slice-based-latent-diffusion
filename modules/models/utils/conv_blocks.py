@@ -12,6 +12,17 @@ from monai.utils.misc import ensure_tuple_rep
 
 from modules.models.utils.attention_blocks import Attention, zero_module
 
+class depthwise_separable_conv(nn.Module):
+    def __init__(self, nin, nout, kernel_size = 3, stride = 1, padding = 1, bias=False):
+        super(depthwise_separable_conv, self).__init__()
+        self.depthwise = nn.Conv2d(nin, nin, kernel_size=kernel_size, padding=padding, groups=nin, bias=bias, stride=stride)
+        self.pointwise = nn.Conv2d(nin, nout, kernel_size=1, bias=bias)
+
+    def forward(self, x):
+        out = self.depthwise(x)
+        out = self.pointwise(out)
+        return out
+
 def save_add(*args):
     args = [arg for arg in args if arg is not None]
     return sum(args) if len(args)>0 else None 
@@ -231,7 +242,6 @@ class BasicResBlock(nn.Module):
             bias=True,
         ) if in_channels != out_channels else nn.Identity()
 
-    
     def forward(self, inp):
         out = self.basic_block(inp)
         residual = self.conv_res(inp)

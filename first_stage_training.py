@@ -60,6 +60,7 @@ if __name__ == "__main__":
         optimizer_kwargs = {'lr': 1e-5}
     )
 
+
     # model = VAEGAN(
     #     in_channels     = 2, 
     #     out_channels    = 2, 

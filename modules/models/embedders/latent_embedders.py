@@ -835,7 +835,7 @@ class VAE(BasicModel):
             loss += torch.sum(rec_loss_i) / pred.shape[0]  
 
         return loss
-
+    
     def _step(self, batch, batch_idx, split, step):
         # ------------------------- Get Source/Target ---------------------------
         # x, t = batch
