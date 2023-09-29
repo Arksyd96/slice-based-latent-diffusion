@@ -24,14 +24,14 @@ if __name__ == "__main__":
     # --------------- Logger --------------------
     logger = wandb_logger.WandbLogger(
         project = 'slice-based-latent-diffusion', 
-        name    = 'first-stage VAE Mask (240x240 VAE 4ch)',
+        name    = 'first-stage VAE Mask (240x240 VAE 3 ch)',
         save_dir = save_dir
     )
 
     # ------------ Load Data ----------------
     datamodule = BRATSDataModule(
         data_dir        = './data/first_stage_dataset_240x240.npy',
-        train_ratio     = 0.9,
+        train_ratio     = 0.95,
         norm            = 'centered-norm', 
         batch_size      = 16,
         num_workers     = 32,

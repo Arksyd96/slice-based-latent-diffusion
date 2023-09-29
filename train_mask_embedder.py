@@ -11,13 +11,9 @@ from pytorch_lightning.loggers import wandb as wandb_logger
 from modules.data import BRATSDataModule
 from modules.models.embedders.latent_embedders import VAE, VAEGAN
 from modules.loggers import ImageReconstructionLogger
-from modules.funcs import MaskReconstructionLoss
-
-import shortuuid
 
 os.environ['WANDB_API_KEY'] = 'bdc8857f9d6f7010cff35bcdc0ae9413e05c75e1'
 torch.set_float32_matmul_precision('high')
-
 
 if __name__ == "__main__":
     # --------------- Settings --------------------
@@ -28,26 +24,23 @@ if __name__ == "__main__":
     # --------------- Logger --------------------
     logger = wandb_logger.WandbLogger(
         project = 'slice-based-latent-diffusion', 
-        name    = 'mask-embedder',
+        name    = 'Mask embedder (240x240 VAE 1 ch)',
         save_dir = save_dir
     )
 
     # ------------ Load Data ----------------
     datamodule = BRATSDataModule(
-        data_dir        = './data/brats_preprocessed.npy',
+        data_dir        = './data/first_stage_dataset_240x240.npy',
         train_ratio     = 0.95,
-        norm            = 'centered-norm',
-        batch_size      = 8,
-        num_workers     = 6,
+        norm            = 'centered-norm', 
+        batch_size      = 16,
+        num_workers     = 32,
         shuffle         = True,
         horizontal_flip = 0.5,
         vertical_flip   = 0.5,
-        # rotation        = (0, 90),
+        rotation        = (0, 90),
         # random_crop_size = (96, 96),
-        dtype           = torch.float32,
-        slice_wise      = True,
-        reduce_empty_slices = True,
-        drop_channels   = [0]
+        dtype           = torch.float32
     )
 
 
@@ -57,20 +50,16 @@ if __name__ == "__main__":
         out_channels    = 1, 
         emb_channels    = 1,
         spatial_dims    = 2, # 2D or 3D
-        hid_chs         = [32, 32, 64, 128, 256, 256], 
-        kernel_sizes    = [3, 3, 3, 3, 3, 3],
-        strides         = [1, 2, 2, 2, 2, 2],
+        hid_chs         = [64, 128, 256, 256], 
+        kernel_sizes    = [3, 3, 3, 3],
+        strides         = [1, 2, 2, 2],
         time_embedder   = None,
         deep_supervision = False,
         use_attention   = 'none', # ['none', 'none', 'none', 'spatial'],
         loss            = torch.nn.MSELoss,
-        loss_kwargs     = {'reduction': 'mean'},
         embedding_loss_weight = 1e-6,
-        optimizer_kwargs      = {'lr': 1e-5},
-        use_perceptual_loss   = True,
-        use_ssim_loss   = True   
+        optimizer_kwargs = {'lr': 1e-5}
     )
-    
 
     # -------------- Training Initialization ---------------
     checkpointing = ModelCheckpoint(
@@ -79,22 +68,21 @@ if __name__ == "__main__":
         every_n_epochs = 10,
         save_last   = True,
         save_top_k  = 1,
-        mode        = 'min',
-        filename    = 'mask-embedder-{epoch:02d}',
+        mode        = 'min'
     )
     
     image_logger = ImageReconstructionLogger(
-        n_samples = 6,
+        n_samples = 10,
+        sample_every_n_steps = 500, 
         save      = True,
-        save_dir  = save_dir,
-        is_3d     = True
+        save_dir  = save_dir
     )
-        
+
     trainer = Trainer(
         logger      = logger,
-        strategy    = 'ddp',
-        devices     = 4,
-        num_nodes   = 2,  
+        # strategy    = 'ddp',
+        # devices     = 4,
+        # num_nodes   = 2,  
         precision   = 32,
         accelerator = 'gpu',
         # gradient_clip_val=0.5,
