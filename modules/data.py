@@ -117,22 +117,21 @@ class BRATSDataModule(LightningDataModule):
 
     def prepare_data(self) -> None:
         self.data = np.load(self.data_dir, allow_pickle=True)
-        self.data = torch.from_numpy(self.data[:, 1, None, ...])
+        self.data = torch.from_numpy(self.data)
     
     def setup(self, stage=None):        
         # reduce number of empty slices
-        empty_slices_map = self.data[:, 0].mean(axis=(1, 2)) <= self.data.min() + 1e-6
-        empty_slices_num = empty_slices_map.sum()
-        num_to_set_false = int(empty_slices_num * 0.1)
-        print('Removing empty slices (keeping 10% | {} out of {})...'.format(num_to_set_false, empty_slices_num))
+        # empty_slices_map = self.data[:, 0].mean(axis=(1, 2)) <= self.data.min() + 1e-6
+        # empty_slices_num = empty_slices_map.sum()
+        # num_to_set_false = int(empty_slices_num * 0.1)
+        # print('Removing empty slices (keeping 10% | {} out of {})...'.format(num_to_set_false, empty_slices_num))
 
-        indices = np.where(empty_slices_map == True)[0]
-        indices_to_set_false = np.random.permutation(int(empty_slices_num))[:num_to_set_false]
-        empty_slices_map[indices[indices_to_set_false]] = False
+        # indices = np.where(empty_slices_map == True)[0]
+        # indices_to_set_false = np.random.permutation(int(empty_slices_num))[:num_to_set_false]
+        # empty_slices_map[indices[indices_to_set_false]] = False
 
-        # removing selected empty slices
-        self.data = self.data[~empty_slices_map.reshape(-1)]
-
+        # # removing selected empty slices
+        # self.data = self.data[~empty_slices_map.reshape(-1)]
 
         train_images, val_images = train_test_split(
             self.data, train_size=self.train_ratio, random_state=42

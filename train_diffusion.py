@@ -1,14 +1,12 @@
 import os
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 
-from email.mime import audio
-from pathlib import Path
 from datetime import datetime
-
+import numpy as np
 import torch 
 import torch.nn as nn
 from pytorch_lightning.trainer import Trainer
-from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
+from pytorch_lightning.callbacks import ModelCheckpoint
 
 from pytorch_lightning.loggers import wandb as wandb_logger
 
@@ -17,7 +15,7 @@ from modules.models.pipelines import DiffusionPipeline
 from modules.models.estimators import UNet
 from modules.models.noise_schedulers import GaussianNoiseScheduler
 from modules.models.embedders import TimeEmbbeding
-from modules.models.embedders.latent_embedders import VAEGAN
+from modules.models.embedders.latent_embedders import VAEGAN, VAE
 from modules.models.embedders.cond_embedders import ConditionMLP
 from modules.loggers import ImageGenerationLogger
 
@@ -40,31 +38,29 @@ if __name__ == "__main__":
     # --------------- Logger --------------------
     logger = wandb_logger.WandbLogger(
         project='slice-based-latent-diffusion', 
-        name='diffusion-training (3D + conditionnement)',
+        name='diffusion-training (3D + test maison)',
         save_dir=save_dir,
         # id='24hyhi7b',
         # resume="must"
     )
 
     datamodule = BRATSDataModule(
-        data_dir        = './data/brats_preprocessed.npy',
+        data_dir        = './data/second_stage_dataset_240x240.npy',
         train_ratio     = 1.0,
-        norm            = 'centered-norm',
-        batch_size      = 16,
-        num_workers     = 32,
+        norm            = 'centered-norm', 
+        batch_size      = 4,
+        num_workers     = 4,
         shuffle         = True,
         # horizontal_flip = 0.5,
         # vertical_flip   = 0.5,
         # rotation        = (0, 90),
         # random_crop_size = (96, 96),
-        dtype           = torch.float32,
-        slice_wise      = False,
-        drop_channels   = [1] # image only
+        dtype           = torch.float32
     )
 
 
     # ------------ Initialize Model ------------
-    cond_embedder = ConditionMLP 
+    cond_embedder = None 
     # cond_embedder = LabelEmbedder
     cond_embedder_kwargs = {
         'in_features': 12, 
@@ -81,10 +77,10 @@ if __name__ == "__main__":
 
     noise_estimator = UNet
     noise_estimator_kwargs = {
-        'in_ch': 2, # takes also the index channel
-        'out_ch': 2,  
+        'in_ch': 4, # takes also the index channel
+        'out_ch': 4,  
         'spatial_dims': 3,
-        'hid_chs': [128, 256, 512, 512],
+        'hid_chs': [64, 128, 256, 512],
         'kernel_sizes': [3, 3, 3, 3],
         'strides': [1, 2, 2, 2],
         'time_embedder': time_embedder,
@@ -107,18 +103,21 @@ if __name__ == "__main__":
     }
     
     # ------------ Initialize Latent Space  ------------
-    latent_embedder = VAEGAN
+    latent_embedder = VAE
     # latent_embedder_checkpoint = './runs/first_stage-2023_08_11_230709 (best AE so far + mask)/epoch=489-step=807030.ckpt'
     
-    latent_embedder_checkpoint = './runs/first_stage-2023_08_23_163957 (vae gan 2 ch)/last.ckpt'
+    latent_embedder_checkpoint = './runs/first_stage-2023_09_27_115636/last.ckpt'
     latent_embedder = latent_embedder.load_from_checkpoint(latent_embedder_checkpoint, time_embedder=None)
+
+    mask_embedder_checkpoint = './runs/mask-embedder-2023_09_30_144008/last.ckpt'
+    mask_embedder = latent_embedder.load_from_checkpoint(mask_embedder_checkpoint, **cond_embedder_kwargs)
    
     # ------------ Initialize Pipeline ------------
-    pipeline = DiffusionPipeline.load_from_checkpoint(
-        './runs/diffusion-2023_09_14_165250/last.ckpt',
-        latent_embedder=latent_embedder,
-        std_norm = 0.5601330399513245
-    )
+    # pipeline = DiffusionPipeline.load_from_checkpoint(
+    #     './runs/diffusion-2023_09_14_165250/last.ckpt',
+    #     latent_embedder=latent_embedder,
+    #     std_norm = np.mean([1.0800604820251465, 0.6785210371017456]) # std of images and std of masks
+    # )
 
     pipeline = DiffusionPipeline(
         noise_estimator=noise_estimator, 
@@ -126,6 +125,7 @@ if __name__ == "__main__":
         noise_scheduler=noise_scheduler, 
         noise_scheduler_kwargs = noise_scheduler_kwargs,
         latent_embedder=latent_embedder,
+        mask_embedder=mask_embedder,
         estimator_objective='x_T',
         estimate_variance=False, 
         use_self_conditioning=False, 
@@ -133,11 +133,10 @@ if __name__ == "__main__":
         classifier_free_guidance_dropout=0.0, # Disable during training by setting to 0
         do_input_centering=False,
         clip_x0=False,
-        std_norm = 0.5601330399513245
+        # std_norm = 0.5601330399513245
+        std_norm = np.mean([1.0800604820251465, 0.6785210371017456])
     )
     
-    # pipeline_old = pipeline.load_from_checkpoint('runs/2022_11_27_085654_chest_diffusion/last.ckpt')
-    # pipeline.noise_estimator.load_state_dict(pipeline_old.noise_estimator.state_dict(), strict=True)
 
     # -------------- Training Initialization ---------------
     checkpointing = ModelCheckpoint(
@@ -149,7 +148,7 @@ if __name__ == "__main__":
     )
 
     image_logger = ImageGenerationLogger(
-        noise_shape=(2, 64, 16, 16),
+        noise_shape=(4, 128, 30, 30),
         save_dir=str(save_dir),
         save_every_n_epochs=10,
         save=True

@@ -24,7 +24,7 @@ if __name__ == "__main__":
     # --------------- Logger --------------------
     logger = wandb_logger.WandbLogger(
         project = 'slice-based-latent-diffusion', 
-        name    = 'Mask embedder (240x240 VAE 1 ch)',
+        name    = 'Mask embedder (240x240 VAE 1 ch) test from home',
         save_dir = save_dir
     )
 
@@ -33,8 +33,8 @@ if __name__ == "__main__":
         data_dir        = './data/first_stage_dataset_240x240.npy',
         train_ratio     = 0.95,
         norm            = 'centered-norm', 
-        batch_size      = 16,
-        num_workers     = 32,
+        batch_size      = 8,
+        num_workers     = 6,
         shuffle         = True,
         horizontal_flip = 0.5,
         vertical_flip   = 0.5,

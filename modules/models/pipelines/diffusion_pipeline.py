@@ -16,9 +16,9 @@ class DiffusionPipeline(BasicModel):
         noise_scheduler,
         noise_estimator,
         latent_embedder=None,
+        mask_embedder=None,
         noise_scheduler_kwargs={},
         noise_estimator_kwargs={},
-        # latent_embedder_checkpoint='',
         estimator_objective = 'x_T', # 'x_T' or 'x_0'
         estimate_variance=False, 
         use_self_conditioning=False, 
@@ -54,6 +54,7 @@ class DiffusionPipeline(BasicModel):
         #         param.requires_grad = False
         # else:
         self.latent_embedder = latent_embedder
+        self.mask_embedder = mask_embedder
 
         self.estimator_objective = estimator_objective
         self.use_self_conditioning = use_self_conditioning
@@ -68,7 +69,7 @@ class DiffusionPipeline(BasicModel):
         if use_ema:
             self.ema_model = EMAModel(self.noise_estimator, **ema_kwargs)
 
-        self.save_hyperparameters(ignore=['latent_embedder'])
+        self.save_hyperparameters(ignore=['latent_embedder', 'mask_embedder'])
 
     def _step(self, batch, batch_idx, state, step):
         results = {}
@@ -79,12 +80,22 @@ class DiffusionPipeline(BasicModel):
         batch = []
         if self.latent_embedder is not None:
             self.latent_embedder.eval() 
+            self.mask_embedder.eval()
             with torch.no_grad():
                 for idx in range(x_0.shape[0]):
-                    volume = self.latent_embedder.encode(x_0[idx], emb=None)
+                    volume = x_0[idx].permute(3, 0, 1, 2)
+                    images, masks = volume[:, 0, None, ...], volume[:, 1, None, ...]
+
+                    slices = []
+                    for image, mask in zip(images, masks):
+                        image = self.latent_embedder.encode(image.unsqueeze(0), emb=None)
+                        mask = self.mask_embedder.encode(mask.unsqueeze(0), emb=None)
+                        slice_latent = torch.cat((image, mask), dim=1)
+                        slices.append(slice_latent)
+                    volume = torch.cat(slices, dim=0)
                     batch.append(volume)
-            
-            x_0 = torch.stack(batch)
+
+            x_0 = torch.stack(batch, dim=0)
             x_0 = x_0.permute(0, 2, 1, 3, 4) # => [B, 2, 64, 16, 16]
             # x_0 = spatially_stack_latents(x_0, (8, 8), index_channel=False) # => [B, 2, 128, 128]
 
