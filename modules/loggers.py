@@ -158,6 +158,13 @@ class ImageReconstructionLogger(pl.Callback):
     #                     images = torch.cat([x, x_hat], dim=0)
     #                     save_image(images, '{}/sample_{}_{}.png'.format(self.save_dir, split, trainer.current_epoch), nrow=x.shape[0],
     #                                normalize=True)
+
+
+def format_condition(arr):
+    keys = ['voxel_volume', 'surface_area', 'sphericity', 'x', 'y', 'z', 'w', 'h', 'd']
+    c = {k: '{:.2f}'.format(v) for k, v in zip(keys, arr)}
+    c = ' - '.join([f'{k}: {v}' for k, v in c.items()])
+    return c
                         
 
 class ImageGenerationLogger(pl.Callback):
@@ -178,40 +185,33 @@ class ImageGenerationLogger(pl.Callback):
             os.makedirs(self.save_dir, exist_ok=True)
 
     def on_train_epoch_end(self, trainer, pl_module):
+        pl_module.eval()
         if trainer.global_rank == 0 and (trainer.current_epoch + 1) % self.save_every_n_epochs == 0:
-            pl_module.eval()
-
             with torch.no_grad():
                 condition = trainer.train_dataloader.dataset.sample(1)[1]
                 condition = condition.to(pl_module.device, torch.float32)
 
                 sample_img = pl_module.sample(num_samples=1, img_size=self.noise_shape, condition=condition).detach()
-                sample_img = sample_img.permute(0, 2, 1, 3, 4).squeeze(0)
-
-                if pl_module.std_norm:
-                    sample_img = sample_img.mul(pl_module.std_norm)
-
-                # sample_img = reverse_spatial_stack(sample_img, (16, 16), index_channel=False).squeeze(0)
-
+                sample_img = sample_img.permute(0, 4, 1, 2, 3).squeeze(0)
+                
+                sample_img = sample_img.mul(pl_module.std_norm)
                 sample_img = pl_module.latent_embedder.decode(sample_img, emb=None)
 
                 # selecting subset of the volume to display
                 sample_img = sample_img[::4, ...] # 64 // 4 = 16
 
                 if self.save:
-                    save_image(sample_img, '{}/sample_images_{}.png'.format(self.save_dir, trainer.current_epoch), normalize=True)
+                    save_image(sample_img[:, 0, None], '{}/sample_images_{}.png'.format(self.save_dir, trainer.current_epoch), normalize=True)
 
                 sample_img = torch.cat([
                     torch.hstack([img for img in sample_img[:, idx, ...]]) for idx in range(sample_img.shape[1])
                 ], dim=0)
-                sample_img = sample_img.add(1).div(2).mul(255).clamp(0, 255).to(torch.uint8)
 
-                # format into text the condition :
-                log_condition = ' | '.join(['{:.2f}'.format(feature) for feature in condition[0]])
+                sample_img = sample_img.add(1).div(2).mul(255).clamp(0, 255).to(torch.uint8)
                 
                 wandb.log({
                     'Reconstruction examples': wandb.Image(
                         sample_img.cpu().numpy(), 
-                        caption='Condition : {}'.format(log_condition)
+                        caption='[{}] - {}'.format(trainer.current_epoch, format_condition(condition[0].cpu().numpy()))
                     )
                 })

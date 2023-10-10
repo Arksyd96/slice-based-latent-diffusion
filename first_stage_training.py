@@ -24,30 +24,30 @@ if __name__ == "__main__":
     # --------------- Logger --------------------
     logger = wandb_logger.WandbLogger(
         project = 'slice-based-latent-diffusion', 
-        name    = 'first-stage VAE Mask (240x240 VAE 3 ch)',
+        name    = 'first-stage VAE Mask (228x228 VAE 6 ch)',
         save_dir = save_dir
     )
 
     # ------------ Load Data ----------------
     datamodule = BRATSDataModule(
-        data_dir        = './data/first_stage_dataset_240x240.npy',
+        data_dir        = './data/first_stage_dataset_192x192.npy',
         train_ratio     = 0.95,
         norm            = 'centered-norm', 
-        batch_size      = 16,
+        batch_size      = 32,
         num_workers     = 32,
         shuffle         = True,
-        horizontal_flip = 0.5,
-        vertical_flip   = 0.5,
-        rotation        = (0, 90),
+        horizontal_flip = 0.2,
+        vertical_flip   = 0.2,
+        # rotation        = (0, 90),
         # random_crop_size = (96, 96),
         dtype           = torch.float32
     )
 
     # ------------ Initialize Model ------------
     model = VAE(
-        in_channels     = 1, 
-        out_channels    = 1, 
-        emb_channels    = 3,
+        in_channels     = 2, 
+        out_channels    = 2, 
+        emb_channels    = 6,
         spatial_dims    = 2, # 2D or 3D
         hid_chs         = [128, 256, 512, 512], 
         kernel_sizes    = [3, 3, 3, 3],
@@ -55,9 +55,10 @@ if __name__ == "__main__":
         time_embedder   = None,
         deep_supervision = False,
         use_attention   = 'none', # ['none', 'none', 'none', 'spatial'],
-        loss            = torch.nn.MSELoss,
+        loss            = torch.nn.L1Loss,
         embedding_loss_weight = 1e-6,
-        optimizer_kwargs = {'lr': 1e-5}
+        optimizer_kwargs = {'lr': 1e-5},
+        perceptual_loss_weight=0.5
     )
 
 

@@ -10,8 +10,9 @@ import argparse
 
 def compute_bounding_box(mask):
     # find the bounding box of the binary mask
-    slices = find_objects(mask.astype(np.uint8))
-
+    mask = mask.astype(np.uint8)
+    slices = find_objects(mask)
+    
     # convert the slices to a tuple of (start, stop) pairs
     bbox = []
     for s in slices:
@@ -33,18 +34,20 @@ if __name__ == "__main__":
 
     # transform volume and mask to niftii without saving but just for radiomics
     radiomics = {
-        'voxel_volume': [], 'surface_area': [], 'surface_volume_ratio': [], 'sphericity': [],  # shape features
-        'autocorrelation': [], 'contrast': [],  # gray scale features
+        'voxel_volume': [], 'surface_area': [], 'sphericity': [],  # shape features
         'x': [], 'y': [], 'z': [], 'w': [], 'h': [], 'd': [] # position features
     }
     for idx in tqdm(range(volumes.shape[0]), position=0, leave=True):
         volume, mask = volumes[idx], masks[idx]
 
+        if mask.min() < 0:
+            mask[mask < 0] = 0
+
         # position relate features
-        x, y ,z = center_of_mass(mask)
+        x, y, z = center_of_mass(mask)
         (x_a, y_a, z_a), (x_b, y_b, z_b) = compute_bounding_box(mask)[0]
         w, h, d = x_b - x_a, y_b - y_a, z_b - z_a
-
+        
         volume = GetImageFromArray(volume)
         mask = GetImageFromArray(mask)
 
@@ -54,20 +57,19 @@ if __name__ == "__main__":
         # get shape radiomics
         voxel_volume = shape_radiomics.getVoxelVolumeFeatureValue()
         surface_area = shape_radiomics.getSurfaceAreaFeatureValue()
-        surface_volume_ratio = shape_radiomics.getSurfaceVolumeRatioFeatureValue()
+        # surface_volume_ratio = shape_radiomics.getSurfaceVolumeRatioFeatureValue()
         sphericity = shape_radiomics.getSphericityFeatureValue()
 
         # get glcm radiomics
-        glcm_radiomics._initCalculation()
-        autocorrelation = glcm_radiomics.getAutocorrelationFeatureValue()
-        contrast = glcm_radiomics.getContrastFeatureValue()
+        # glcm_radiomics._initCalculation()
+        # autocorrelation = glcm_radiomics.getAutocorrelationFeatureValue()
+        # contrast = glcm_radiomics.getContrastFeatureValue()
 
         # put all together
         for feature_key, feature in zip(
             radiomics.keys(),
             [
-                voxel_volume, surface_area, surface_volume_ratio, sphericity, 
-                autocorrelation, contrast,
+                voxel_volume, surface_area, sphericity, 
                 x, y, z, w, h, d
             ]
         ):
@@ -86,8 +88,8 @@ if __name__ == "__main__":
     radiomics['surface_area'] = radiomics['surface_area'] / np.max(radiomics['surface_area'])
     # surface_area_volume ratio and sphericity are already comprised between 0 and 1
 
-    radiomics['autocorrelation'] = radiomics['autocorrelation'] / np.max(radiomics['autocorrelation'])
-    radiomics['contrast'] = radiomics['contrast'] / np.max(radiomics['contrast'])
+    # radiomics['autocorrelation'] = radiomics['autocorrelation'] / np.max(radiomics['autocorrelation'])
+    # radiomics['contrast'] = radiomics['contrast'] / np.max(radiomics['contrast'])
     
     # saving
     np.save('{}/radiomics.npy'.format(args.save_path), np.array(radiomics))

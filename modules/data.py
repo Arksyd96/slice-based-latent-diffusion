@@ -96,6 +96,7 @@ class BRATSDataModule(LightningDataModule):
         random_crop_size = None,
         dtype = torch.float32,
         verbose = True,
+        include_radiomics = True,
         **kwargs
     ):
         super().__init__()
@@ -113,12 +114,24 @@ class BRATSDataModule(LightningDataModule):
         self.num_workers = num_workers
         self.shuffle = shuffle
         self.train_ratio = train_ratio
+        self.include_radiomics = include_radiomics
         self.verbose = verbose
 
     def prepare_data(self) -> None:
         self.data = np.load(self.data_dir, allow_pickle=True)
         self.data = torch.from_numpy(self.data)
-    
+
+        ##############################
+        if self.include_radiomics:
+            self.radiomics = np.load('./data/radiomics.npy', allow_pickle=True).tolist()
+            self.radiomics = torch.tensor(
+                [
+                    tuple(self.radiomics[key][i] for key in self.radiomics) 
+                    for i in range(len(self.radiomics['w']))
+                ],
+                dtype=self.dataset_kwargs['dtype']
+            )
+        
     def setup(self, stage=None):        
         # reduce number of empty slices
         # empty_slices_map = self.data[:, 0].mean(axis=(1, 2)) <= self.data.min() + 1e-6
@@ -133,12 +146,21 @@ class BRATSDataModule(LightningDataModule):
         # # removing selected empty slices
         # self.data = self.data[~empty_slices_map.reshape(-1)]
 
-        train_images, val_images = train_test_split(
-            self.data, train_size=self.train_ratio, random_state=42
-        ) if self.train_ratio < 1 else (self.data, [])
+        if self.include_radiomics:
+            train_images, train_y, val_images, val_y = train_test_split(
+                self.data, self.radiomics, train_size=self.train_ratio, random_state=42
+            ) if self.train_ratio < 1 else (self.data, self.radiomics, [], [])
 
-        self.train_dataset = BRATSDataset(train_images, **self.dataset_kwargs)
-        self.val_dataset = BRATSDataset(val_images)
+            self.train_dataset = BRATSDataset(train_images, train_y, **self.dataset_kwargs)
+            self.val_dataset = BRATSDataset(val_images, val_y)
+        
+        else:
+            train_images, val_images = train_test_split(
+                self.data, train_size=self.train_ratio, random_state=42
+            ) if self.train_ratio < 1 else (self.data, [])
+
+            self.train_dataset = BRATSDataset(train_images, **self.dataset_kwargs)
+            self.val_dataset = BRATSDataset(val_images)
 
         log = """
         DataModule setup complete.

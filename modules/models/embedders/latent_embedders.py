@@ -817,7 +817,7 @@ class VAE(BasicModel):
         interpolation_mode = 'nearest-exact'
         
         # compute reconstruction loss
-        perceptual_loss = self.perception_loss(pred, target) if self.use_perceptual_loss else 0
+        perceptual_loss = self.perception_loss(pred[:, 0, None], target[:, 0, None]) if self.use_perceptual_loss else 0
         ssim_loss = self.ssim_loss(pred, target) if self.use_ssim_loss else 0
         pixel_loss = self.loss_fct(pred, target)
 

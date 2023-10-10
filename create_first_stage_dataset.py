@@ -27,6 +27,9 @@ if __name__ == "__main__":
     parser.add_argument('-z', '--npz', action='store_true', help='Save the dataset as a npz file (Each modality is saved as a different key)')
     args = parser.parse_args()
 
+    # assert seg is last in the list
+    assert args.modalities[-1] == 'seg', "The segmentation mask must be the last modality in the list"
+
     print('Loading dataset from NiFTI files... (This script requires a lot of memory)')
 
     data = np.zeros(shape=(
@@ -70,7 +73,7 @@ if __name__ == "__main__":
         data[idx * args.target_shape[2]: (idx + 1) * args.target_shape[2], ...] = volumes
 
     # not working with z-score normalization
-    empty_slices_map = data[:, :-1].mean(axis=(2, 3)) <= data.min() + 1e-5 # all modalities except seg
+    empty_slices_map = data[:, :-1].mean(axis=(1, 2, 3)) <= data.min() + 1e-5 # all modalities except seg
     empty_slices_num = empty_slices_map.sum()
     num_to_set_false = int(empty_slices_num * 0.1)
     print('Removing empty slices (keeping 10% | {} out of {})...'.format(num_to_set_false, empty_slices_num))

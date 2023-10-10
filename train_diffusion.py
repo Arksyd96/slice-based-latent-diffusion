@@ -2,15 +2,12 @@ import os
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 
 from datetime import datetime
-import numpy as np
 import torch 
-import torch.nn as nn
 from pytorch_lightning.trainer import Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint
 
 from pytorch_lightning.loggers import wandb as wandb_logger
 
-# from modules.data.datamodules import SimpleDataModule
 from modules.models.pipelines import DiffusionPipeline
 from modules.models.estimators import UNet
 from modules.models.noise_schedulers import GaussianNoiseScheduler
@@ -38,32 +35,33 @@ if __name__ == "__main__":
     # --------------- Logger --------------------
     logger = wandb_logger.WandbLogger(
         project='slice-based-latent-diffusion', 
-        name='diffusion-training (3D + test maison)',
+        name='diffusion-training (3D + mask + condition 192x192x96)',
         save_dir=save_dir,
         # id='24hyhi7b',
         # resume="must"
     )
 
     datamodule = BRATSDataModule(
-        data_dir        = './data/second_stage_dataset_240x240.npy',
+        data_dir        = './data/second_stage_dataset_192x192.npy',
         train_ratio     = 1.0,
         norm            = 'centered-norm', 
-        batch_size      = 4,
-        num_workers     = 4,
+        batch_size      = 8,
+        num_workers     = 32,
         shuffle         = True,
         # horizontal_flip = 0.5,
         # vertical_flip   = 0.5,
         # rotation        = (0, 90),
         # random_crop_size = (96, 96),
-        dtype           = torch.float32
+        dtype           = torch.float32,
+        include_radiomics = True
     )
 
 
     # ------------ Initialize Model ------------
-    cond_embedder = None 
+    cond_embedder = ConditionMLP
     # cond_embedder = LabelEmbedder
     cond_embedder_kwargs = {
-        'in_features': 12, 
+        'in_features': 9, 
         'out_features': 512, 
         'hidden_dim': 256
     }
@@ -71,14 +69,14 @@ if __name__ == "__main__":
 
     time_embedder = TimeEmbbeding
     time_embedder_kwargs = {
-        'emb_dim': 512 # stable diffusion uses 4*model_channels (model_channels is about 256)
+        'emb_dim': 512 # stable diffusion uses 4 * model_channels (model_channels is about 256)
     }
 
 
     noise_estimator = UNet
     noise_estimator_kwargs = {
-        'in_ch': 4, # takes also the index channel
-        'out_ch': 4,  
+        'in_ch': 6,
+        'out_ch': 6,  
         'spatial_dims': 3,
         'hid_chs': [64, 128, 256, 512],
         'kernel_sizes': [3, 3, 3, 3],
@@ -106,36 +104,32 @@ if __name__ == "__main__":
     latent_embedder = VAE
     # latent_embedder_checkpoint = './runs/first_stage-2023_08_11_230709 (best AE so far + mask)/epoch=489-step=807030.ckpt'
     
-    latent_embedder_checkpoint = './runs/first_stage-2023_09_27_115636/last.ckpt'
+    latent_embedder_checkpoint = './runs/first_stage-2023_10_03_155314 (VAE + mask 192x192 6 ch)/last.ckpt'
     latent_embedder = latent_embedder.load_from_checkpoint(latent_embedder_checkpoint, time_embedder=None)
 
-    mask_embedder_checkpoint = './runs/mask-embedder-2023_09_30_144008/last.ckpt'
-    mask_embedder = latent_embedder.load_from_checkpoint(mask_embedder_checkpoint, **cond_embedder_kwargs)
-   
     # ------------ Initialize Pipeline ------------
-    # pipeline = DiffusionPipeline.load_from_checkpoint(
-    #     './runs/diffusion-2023_09_14_165250/last.ckpt',
-    #     latent_embedder=latent_embedder,
-    #     std_norm = np.mean([1.0800604820251465, 0.6785210371017456]) # std of images and std of masks
-    # )
-
-    pipeline = DiffusionPipeline(
-        noise_estimator=noise_estimator, 
-        noise_estimator_kwargs=noise_estimator_kwargs,
-        noise_scheduler=noise_scheduler, 
-        noise_scheduler_kwargs = noise_scheduler_kwargs,
+    pipeline = DiffusionPipeline.load_from_checkpoint(
+        './runs/diffusion-2023_10_06_154034 (6 ch - 192x192x96 + mask + cond)/last.ckpt',
         latent_embedder=latent_embedder,
-        mask_embedder=mask_embedder,
-        estimator_objective='x_T',
-        estimate_variance=False, 
-        use_self_conditioning=False, 
-        use_ema=False,
-        classifier_free_guidance_dropout=0.0, # Disable during training by setting to 0
-        do_input_centering=False,
-        clip_x0=False,
-        # std_norm = 0.5601330399513245
-        std_norm = np.mean([1.0800604820251465, 0.6785210371017456])
+        std_norm = 0.8856033086776733
     )
+
+    # pipeline = DiffusionPipeline(
+    #     noise_estimator=noise_estimator, 
+    #     noise_estimator_kwargs=noise_estimator_kwargs,
+    #     noise_scheduler=noise_scheduler, 
+    #     noise_scheduler_kwargs = noise_scheduler_kwargs,
+    #     latent_embedder=latent_embedder,
+    #     # mask_embedder=mask_embedder,
+    #     estimator_objective='x_T',
+    #     estimate_variance=False, 
+    #     use_self_conditioning=False, 
+    #     use_ema=False,
+    #     classifier_free_guidance_dropout=0.0, # Disable during training by setting to 0
+    #     do_input_centering=False,
+    #     clip_x0=False,
+    #     std_norm = 0.8856033086776733
+    # )
     
 
     # -------------- Training Initialization ---------------
@@ -148,9 +142,9 @@ if __name__ == "__main__":
     )
 
     image_logger = ImageGenerationLogger(
-        noise_shape=(4, 128, 30, 30),
+        noise_shape=(6, 24, 24, 96),
         save_dir=str(save_dir),
-        save_every_n_epochs=10,
+        save_every_n_epochs=15,
         save=True
     )
 
@@ -166,7 +160,7 @@ if __name__ == "__main__":
         enable_checkpointing = True,
         log_every_n_steps = 1, 
         min_epochs = 100,
-        max_epochs = 1500,
+        max_epochs = 3000,
         num_sanity_val_steps = 0,
         # fast_dev_run = 10,
         callbacks=[checkpointing, image_logger]

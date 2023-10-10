@@ -21,11 +21,11 @@ if __name__ == "__main__":
     model.eval()
 
     datamodule = BRATSDataModule(
-        data_dir        = './data/first_stage_dataset_240x240.npy',
+        data_dir        = './data/first_stage_dataset_192x192.npy',
         train_ratio     = 1.0,
         norm            = 'centered-norm', 
         batch_size      = 8,
-        num_workers     = 6,
+        num_workers     = 32,
         dtype           = torch.float32
     )
 
@@ -34,12 +34,13 @@ if __name__ == "__main__":
 
     latents = []
     with torch.no_grad():
-        for idx, batch in enumerate(tqdm(datamodule.train_dataloader(), position=0, leave=True, desc='Encoding ...')):
+        for idx, batch in enumerate(tqdm(datamodule.train_dataloader(), position=0, leave=True, desc='Encoding')):
             x = batch[0].to(device)
             x_hat = model.encode(x, emb=None)
             latents.append(x_hat.detach())
         
         latents = torch.cat(latents, dim=0)
+        print(latents.shape)
         std = latents.std()
 
     print('std: {}'.format(std))
