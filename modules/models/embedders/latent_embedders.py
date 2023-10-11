@@ -60,8 +60,6 @@ class VectorQuantizer(nn.Module):
         z_q = z + (z_q - z).detach()
 
         return z_q, loss
-
-
   
 class Discriminator(nn.Module):
     def __init__(self, 
@@ -113,13 +111,10 @@ class Discriminator(nn.Module):
             zero_conv=True
         )
 
-    
-
     def forward(self, x):
         x = self.inc(x)
         x = self.encoder(x)
         return self.outc(x)
-
 
 class NLayerDiscriminator(nn.Module):
     def __init__(self, 
@@ -174,8 +169,6 @@ class NLayerDiscriminator(nn.Module):
         x = self.inc(x)
         x = self.encoder(x)
         return self.outc(x)
-
-
 
 
 class VQVAE(BasicModel):
@@ -604,6 +597,7 @@ class VQGAN(VeryBasicModel):
         d_weight = torch.norm(rec_grads) / (torch.norm(gan_grads) + eps) 
         d_weight = torch.clamp(d_weight, 0.0, 1e4)
         return d_weight.detach()
+
 
 class VAE(BasicModel):
     def __init__(

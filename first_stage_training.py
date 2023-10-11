@@ -4,6 +4,7 @@ os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 from datetime import datetime
 
 import torch 
+import pytorch_lightning as pl
 from pytorch_lightning.trainer import Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import wandb as wandb_logger
@@ -13,34 +14,37 @@ from modules.models.embedders.latent_embedders import VAE, VAEGAN
 from modules.loggers import ImageReconstructionLogger
 
 os.environ['WANDB_API_KEY'] = 'bdc8857f9d6f7010cff35bcdc0ae9413e05c75e1'
-torch.set_float32_matmul_precision('high')
 
 if __name__ == "__main__":
+    torch.set_float32_matmul_precision('high')
+    pl.seed_everything(42)
+
     # --------------- Settings --------------------
     current_time = datetime.now().strftime("%Y_%m_%d_%H%M%S")
-    save_dir = '{}/runs/first_stage-{}'.format(os.path.curdir, str(current_time))
+    save_dir = '{}/runs/LDM-first-stage-{}'.format(os.path.curdir, str(current_time))
     os.makedirs(save_dir, exist_ok=True)
 
     # --------------- Logger --------------------
     logger = wandb_logger.WandbLogger(
-        project = 'slice-based-latent-diffusion', 
-        name    = 'first-stage VAE Mask (228x228 VAE 6 ch)',
+        project = 'comparative-models', 
+        name    = 'LDM first-stage (VAE 6 ch)',
         save_dir = save_dir
     )
 
     # ------------ Load Data ----------------
     datamodule = BRATSDataModule(
-        data_dir        = './data/first_stage_dataset_192x192.npy',
-        train_ratio     = 0.95,
+        data_dir        = './data/second_stage_dataset_192x192.npy',
+        train_ratio     = 0.92,
         norm            = 'centered-norm', 
-        batch_size      = 32,
+        batch_size      = 2,
         num_workers     = 32,
         shuffle         = True,
         horizontal_flip = 0.2,
         vertical_flip   = 0.2,
         # rotation        = (0, 90),
         # random_crop_size = (96, 96),
-        dtype           = torch.float32
+        dtype           = torch.float32,
+        include_radiomics = False
     )
 
     # ------------ Initialize Model ------------
@@ -48,13 +52,13 @@ if __name__ == "__main__":
         in_channels     = 2, 
         out_channels    = 2, 
         emb_channels    = 6,
-        spatial_dims    = 2, # 2D or 3D
-        hid_chs         = [128, 256, 512, 512], 
-        kernel_sizes    = [3, 3, 3, 3],
-        strides         = [1, 2, 2, 2],
+        spatial_dims    = 3, # 2D or 3D
+        hid_chs         = [32, 64, 128, 256, 512], 
+        kernel_sizes    = [3, 3, 3, 3, 3],
+        strides         = [1, 2, 2, 2, 2],
         time_embedder   = None,
         deep_supervision = False,
-        use_attention   = 'none', # ['none', 'none', 'none', 'spatial'],
+        use_attention   = 'none',
         loss            = torch.nn.L1Loss,
         embedding_loss_weight = 1e-6,
         optimizer_kwargs = {'lr': 1e-5},
@@ -81,14 +85,14 @@ if __name__ == "__main__":
     checkpointing = ModelCheckpoint(
         dirpath     = save_dir, # dirpath
         monitor     = 'val/loss', # 'val/ae_loss_epoch',
-        every_n_epochs = 10,
+        every_n_epochs = 1,
         save_last   = True,
         save_top_k  = 1,
         mode        = 'min',
     )
     
     image_logger = ImageReconstructionLogger(
-        n_samples = 10,
+        n_samples = 1,
         sample_every_n_steps = 500, 
         save      = True,
         save_dir  = save_dir

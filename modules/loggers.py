@@ -47,6 +47,12 @@ class ImageReconstructionLogger(pl.Callback):
                     
                     x_hat, _, _ = pl_module(x, timestep=pos)
                     
+                    x_hat = x_hat.permute(0, 4, 1, 2, 3).squeeze(0)
+                    x_hat = x_hat[::16]
+
+                    x = x.permute(0, 4, 1, 2, 3).squeeze(0)
+                    x = x[::16]
+                    
                     # if not self.is_3d:
                     # at this point x and x_hat are of shape [B, 2, 128, 128]
                     originals = torch.cat([
