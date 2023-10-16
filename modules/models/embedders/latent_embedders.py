@@ -653,6 +653,8 @@ class VAE(BasicModel):
         downsample_kernel_sizes = kernel_sizes
         upsample_kernel_sizes = strides 
 
+        self.save_hyperparameters()
+
         # -------- Time/Position embedding ---------
         if time_embedder is not None:
             self.time_embedder = time_embedder(**time_embedder_kwargs)
@@ -747,7 +749,7 @@ class VAE(BasicModel):
         #     for _ in range(1, deep_supervision+1)
         # ])
         
-        self.save_hyperparameters()
+        
 
     def encode_timestep(self, timestep):
         if self.time_embedder is None:

@@ -28,13 +28,15 @@ if __name__ == "__main__":
     logger = wandb_logger.WandbLogger(
         project = 'comparative-models', 
         name    = 'LDM first-stage (VAE 6 ch)',
-        save_dir = save_dir
+        save_dir = save_dir,
+        id      = 'az4y4ck6',
+        resume  = 'must'
     )
 
     # ------------ Load Data ----------------
     datamodule = BRATSDataModule(
         data_dir        = './data/second_stage_dataset_192x192.npy',
-        train_ratio     = 0.92,
+        train_ratio     = 0.95,
         norm            = 'centered-norm', 
         batch_size      = 2,
         num_workers     = 32,
@@ -48,22 +50,24 @@ if __name__ == "__main__":
     )
 
     # ------------ Initialize Model ------------
-    model = VAE(
-        in_channels     = 2, 
-        out_channels    = 2, 
-        emb_channels    = 6,
-        spatial_dims    = 3, # 2D or 3D
-        hid_chs         = [32, 64, 128, 256, 512], 
-        kernel_sizes    = [3, 3, 3, 3, 3],
-        strides         = [1, 2, 2, 2, 2],
-        time_embedder   = None,
-        deep_supervision = False,
-        use_attention   = 'none',
-        loss            = torch.nn.L1Loss,
-        embedding_loss_weight = 1e-6,
-        optimizer_kwargs = {'lr': 1e-5},
-        perceptual_loss_weight=0.5
-    )
+    # model = VAE(
+    #     in_channels     = 2, 
+    #     out_channels    = 2, 
+    #     emb_channels    = 6,
+    #     spatial_dims    = 3, # 2D or 3D
+    #     hid_chs         = [32, 64, 128, 256, 512], 
+    #     kernel_sizes    = [3, 3, 3, 3, 3],
+    #     strides         = [1, 2, 2, 2, 2],
+    #     time_embedder   = None,
+    #     deep_supervision = False,
+    #     use_attention   = 'none',
+    #     loss            = torch.nn.L1Loss,
+    #     embedding_loss_weight = 1e-6,
+    #     optimizer_kwargs = {'lr': 1e-5},
+    #     perceptual_loss_weight=0.5
+    # )
+
+    model = VAE.load_from_checkpoint('./runs/LDM-first-stage-2023_10_10_175707/last.ckpt', time_embedder=None)
 
 
     # model = VAEGAN(

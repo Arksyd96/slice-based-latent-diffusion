@@ -86,7 +86,6 @@ class BasicModel(VeryBasicModel):
                  lr_scheduler_kwargs={},
                  ):
         super().__init__()
-        self.save_hyperparameters()
         self.optimizer = optimizer
         self.optimizer_kwargs = optimizer_kwargs
         self.lr_scheduler = lr_scheduler 
