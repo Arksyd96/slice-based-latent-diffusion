@@ -29,8 +29,8 @@ if __name__ == "__main__":
         project = 'comparative-models', 
         name    = 'LDM first-stage (VAE 6 ch)',
         save_dir = save_dir,
-        id      = 'az4y4ck6',
-        resume  = 'must'
+        # id      = 'az4y4ck6',
+        # resume  = 'must'
     )
 
     # ------------ Load Data ----------------

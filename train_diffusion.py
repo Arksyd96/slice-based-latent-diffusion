@@ -29,13 +29,14 @@ torch.set_float32_matmul_precision('high')
 if __name__ == "__main__":
     # --------------- Settings --------------------
     current_time = datetime.now().strftime("%Y_%m_%d_%H%M%S")
-    save_dir = '{}/runs/diffusion-{}'.format(os.path.curdir, str(current_time))
+    save_dir = '{}/runs/LDM-diffusion-{}'.format(os.path.curdir, str(current_time))
     os.makedirs(save_dir, exist_ok=True)
 
     # --------------- Logger --------------------
     logger = wandb_logger.WandbLogger(
-        project='slice-based-latent-diffusion', 
-        name='diffusion-training (3D + mask + condition 192x192x96)',
+        # project='slice-based-latent-diffusion',
+        project='comparative-models', 
+        name='LDM diffusion (3D + mask)',
         save_dir=save_dir,
         # id='24hyhi7b',
         # resume="must"
@@ -45,7 +46,7 @@ if __name__ == "__main__":
         data_dir        = './data/second_stage_dataset_192x192.npy',
         train_ratio     = 1.0,
         norm            = 'centered-norm', 
-        batch_size      = 8,
+        batch_size      = 2,
         num_workers     = 32,
         shuffle         = True,
         # horizontal_flip = 0.5,
@@ -58,7 +59,7 @@ if __name__ == "__main__":
 
 
     # ------------ Initialize Model ------------
-    cond_embedder = ConditionMLP
+    cond_embedder = None
     # cond_embedder = LabelEmbedder
     cond_embedder_kwargs = {
         'in_features': 9, 
@@ -104,32 +105,33 @@ if __name__ == "__main__":
     latent_embedder = VAE
     # latent_embedder_checkpoint = './runs/first_stage-2023_08_11_230709 (best AE so far + mask)/epoch=489-step=807030.ckpt'
     
-    latent_embedder_checkpoint = './runs/first_stage-2023_10_03_155314 (VAE + mask 192x192 6 ch)/last.ckpt'
+    latent_embedder_checkpoint = './runs/LDM-first-stage-2023_10_12_172125/last.ckpt'
     latent_embedder = latent_embedder.load_from_checkpoint(latent_embedder_checkpoint, time_embedder=None)
 
     # ------------ Initialize Pipeline ------------
-    pipeline = DiffusionPipeline.load_from_checkpoint(
-        './runs/diffusion-2023_10_06_154034 (6 ch - 192x192x96 + mask + cond)/last.ckpt',
-        latent_embedder=latent_embedder,
-        std_norm = 0.8856033086776733
-    )
-
-    # pipeline = DiffusionPipeline(
-    #     noise_estimator=noise_estimator, 
-    #     noise_estimator_kwargs=noise_estimator_kwargs,
-    #     noise_scheduler=noise_scheduler, 
-    #     noise_scheduler_kwargs = noise_scheduler_kwargs,
+    # pipeline = DiffusionPipeline.load_from_checkpoint(
+    #     './runs/diffusion-2023_10_06_154034 (6 ch - 192x192x96 + mask + cond)/last.ckpt',
     #     latent_embedder=latent_embedder,
-    #     # mask_embedder=mask_embedder,
-    #     estimator_objective='x_T',
-    #     estimate_variance=False, 
-    #     use_self_conditioning=False, 
-    #     use_ema=False,
-    #     classifier_free_guidance_dropout=0.0, # Disable during training by setting to 0
-    #     do_input_centering=False,
-    #     clip_x0=False,
     #     std_norm = 0.8856033086776733
     # )
+
+    pipeline = DiffusionPipeline(
+        noise_estimator=noise_estimator, 
+        noise_estimator_kwargs=noise_estimator_kwargs,
+        noise_scheduler=noise_scheduler, 
+        noise_scheduler_kwargs = noise_scheduler_kwargs,
+        latent_embedder=latent_embedder,
+        # mask_embedder=mask_embedder,
+        estimator_objective='x_T',
+        estimate_variance=False, 
+        use_self_conditioning=False, 
+        use_ema=False,
+        classifier_free_guidance_dropout=0.0, # Disable during training by setting to 0
+        do_input_centering=False,
+        clip_x0=False,
+        # std_norm = 0.8856033086776733
+        std_norm=0.7322904
+    )
     
 
     # -------------- Training Initialization ---------------
@@ -142,7 +144,7 @@ if __name__ == "__main__":
     )
 
     image_logger = ImageGenerationLogger(
-        noise_shape=(6, 24, 24, 96),
+        noise_shape=(6, 12, 12, 6),
         save_dir=str(save_dir),
         save_every_n_epochs=15,
         save=True

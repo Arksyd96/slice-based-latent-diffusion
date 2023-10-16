@@ -77,23 +77,25 @@ class DiffusionPipeline(BasicModel):
         condition = batch[1] if len(batch) > 1 else None
 
         # Embed into latent space or normalize 
-        batch = []
-        if self.latent_embedder is not None:
-            self.latent_embedder.eval() 
-            with torch.no_grad():
-                for idx in range(x_0.shape[0]):
-                    volume = x_0[idx].permute(3, 0, 1, 2) # => [64, 2, 16, 16]
-                    latents = self.latent_embedder.encode(volume, emb=None)
-                    batch.append(latents)
+        # batch = []
+        # if self.latent_embedder is not None:
+        #     self.latent_embedder.eval() 
+        #     with torch.no_grad():
+        #         for idx in range(x_0.shape[0]):
+        #             volume = x_0[idx].permute(3, 0, 1, 2) # => [64, 2, 16, 16]
+        #             latents = self.latent_embedder.encode(volume, emb=None)
+        #             batch.append(latents)
 
-            x_0 = torch.stack(batch, dim=0)
-            x_0 = x_0.permute(0, 2, 3, 4, 1) # => [B, 2, 16, 16, 64]
+        #     x_0 = torch.stack(batch, dim=0)
+        #     x_0 = x_0.permute(0, 2, 3, 4, 1) # => [B, 2, 16, 16, 64]
+
+        x_0 = self.latent_embedder.encode(x_0) if self.latent_embedder is not None else x_0
             
             # x_0 = torch.nn.functional.pad(x_0, (1, 1, 1, 1), mode='constant', value=0)
             # x_0 = spatially_stack_latents(x_0, (8, 8), index_channel=False) # => [B, 2, 128, 128]
 
         if self.std_norm is not None:
-            latents = latents.div(self.std_norm)
+            x_0 = x_0.div(self.std_norm)
 
         if self.do_input_centering:
             x_0 = 2 * x_0 - 1 # [0, 1] -> [-1, 1]

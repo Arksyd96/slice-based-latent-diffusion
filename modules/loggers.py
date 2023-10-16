@@ -198,10 +198,13 @@ class ImageGenerationLogger(pl.Callback):
                 condition = condition.to(pl_module.device, torch.float32)
 
                 sample_img = pl_module.sample(num_samples=1, img_size=self.noise_shape, condition=condition).detach()
-                sample_img = sample_img.permute(0, 4, 1, 2, 3).squeeze(0)
+                # sample_img = sample_img.permute(0, 4, 1, 2, 3).squeeze(0)
                 
                 sample_img = sample_img.mul(pl_module.std_norm)
                 sample_img = pl_module.latent_embedder.decode(sample_img, emb=None)
+
+                # =>
+                sample_img = sample_img.squeeze(0)
 
                 # selecting subset of the volume to display
                 sample_img = sample_img[::4, ...] # 64 // 4 = 16
