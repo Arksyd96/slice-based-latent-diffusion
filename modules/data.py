@@ -118,6 +118,9 @@ class BRATSDataModule(LightningDataModule):
         self.verbose = verbose
 
     def prepare_data(self) -> None:
+        pass
+        
+    def setup(self, stage=None):      
         self.data = np.load(self.data_dir, allow_pickle=True)
         self.data = torch.from_numpy(self.data)
 
@@ -131,8 +134,7 @@ class BRATSDataModule(LightningDataModule):
                 ],
                 dtype=self.dataset_kwargs['dtype']
             )
-        
-    def setup(self, stage=None):        
+
         # reduce number of empty slices
         # empty_slices_map = self.data[:, 0].mean(axis=(1, 2)) <= self.data.min() + 1e-6
         # empty_slices_num = empty_slices_map.sum()

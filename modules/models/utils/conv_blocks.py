@@ -470,7 +470,7 @@ class UpBlock(nn.Module):
     ):
         super(UpBlock, self).__init__()
         enable_up = ensure_tuple_rep(stride, spatial_dims) != ensure_tuple_rep(1, spatial_dims)
-        skip_out_channels = out_channels if learnable_interpolation and enable_up else in_channels+skip_channels
+        skip_out_channels = out_channels if learnable_interpolation and enable_up else in_channels + skip_channels
         self.learnable_interpolation = learnable_interpolation     
         
 

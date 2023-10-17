@@ -20,40 +20,35 @@ from modules.models.embedders.latent_embedders import VAEGAN, VAE
 from modules.models.embedders.cond_embedders import ConditionMLP
 from modules.loggers import ImageGenerationLogger
 
+from wgan import WGAN
+
 if __name__ == '__main__':
 
-    cond_embedder = None
-    # cond_embedder = LabelEmbedder
-    cond_embedder_kwargs = {
-        'in_features': 9, 
-        'out_features': 512, 
-        'hidden_dim': 256
-    }
- 
+    wgan = WGAN(
+        in_channels=2,
+        out_channels=2,
+        spatial_dims=3,
+        emb_channels=4,
+        hid_chs=[32, 64, 128, 256, 512],
+        kernel_sizes=[3, 3, 3, 3, 3],
+        strides=[1, 2, 2, 2, 2],
+        lr=1e-4,
+        lr_scheduler=None,
+        dropout=0.0,
+        use_res_block=False,
+        learnable_interpolation=True,
+        use_attention='none'
+    ).to('cuda')
 
-    time_embedder = TimeEmbbeding
-    time_embedder_kwargs = {
-        'emb_dim': 512 # stable diffusion uses 4 * model_channels (model_channels is about 256)
-    }
-    noise_estimator = UNet
-    noise_estimator_kwargs = {
-        'in_ch': 6,
-        'out_ch': 6,  
-        'spatial_dims': 3,
-        'hid_chs': [64, 128, 256, 512],
-        'kernel_sizes': [3, 3, 3, 3],
-        'strides': [1, 2, 2, 2],
-        'time_embedder': time_embedder,
-        'time_embedder_kwargs': time_embedder_kwargs,
-        'cond_embedder': cond_embedder,
-        'cond_embedder_kwargs': cond_embedder_kwargs,
-        'deep_supervision': False,
-        'use_res_block': True,
-        'use_attention': 'none',
-    }
+    x = torch.randn(1, 2, 192, 192, 96).to('cuda')
+    o = wgan.discriminator(x)
+    print(o.shape)
 
-    model = UNet(**noise_estimator_kwargs).to('cuda')
+    x = wgan.generator(o)
+    print(x.shape)
 
-    x = torch.randn(2, 6, 16, 16, 16).to('cuda')
+    # for idx, block in enumerate(wgan.decoders):
+    #     x = block(x)
+    #     print(idx, x.shape) 
 
-    y = model(x)
+    # print(x.shape)
