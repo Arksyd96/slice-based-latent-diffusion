@@ -29,14 +29,14 @@ torch.set_float32_matmul_precision('high')
 if __name__ == "__main__":
     # --------------- Settings --------------------
     current_time = datetime.now().strftime("%Y_%m_%d_%H%M%S")
-    save_dir = '{}/runs/LDM-diffusion-{}'.format(os.path.curdir, str(current_time))
+    save_dir = '{}/runs/DDPM-{}'.format(os.path.curdir, str(current_time))
     os.makedirs(save_dir, exist_ok=True)
 
     # --------------- Logger --------------------
     logger = wandb_logger.WandbLogger(
         # project='slice-based-latent-diffusion',
         project='comparative-models', 
-        name='LDM diffusion (3D + mask)',
+        name='DDPM (3D + mask)',
         save_dir=save_dir,
         # id='24hyhi7b',
         # resume="must"
@@ -53,8 +53,8 @@ if __name__ == "__main__":
         # vertical_flip   = 0.5,
         # rotation        = (0, 90),
         # random_crop_size = (96, 96),
-        dtype           = torch.float32,
-        include_radiomics = True
+        dtype           = torch.float16,
+        include_radiomics = False
     )
 
 
@@ -76,12 +76,12 @@ if __name__ == "__main__":
 
     noise_estimator = UNet
     noise_estimator_kwargs = {
-        'in_ch': 6,
-        'out_ch': 6,  
+        'in_ch': 2,
+        'out_ch': 2,  
         'spatial_dims': 3,
-        'hid_chs': [64, 128, 256, 512],
-        'kernel_sizes': [3, 3, 3, 3],
-        'strides': [1, 2, 2, 2],
+        'hid_chs': [32, 64, 128, 256, 512],
+        'kernel_sizes': [3, 3, 3, 3, 3],
+        'strides': [1, 2, 2, 2, 2],
         'time_embedder': time_embedder,
         'time_embedder_kwargs': time_embedder_kwargs,
         'cond_embedder': cond_embedder,
@@ -102,11 +102,11 @@ if __name__ == "__main__":
     }
     
     # ------------ Initialize Latent Space  ------------
-    latent_embedder = VAE
+    # latent_embedder = VAE
     # latent_embedder_checkpoint = './runs/first_stage-2023_08_11_230709 (best AE so far + mask)/epoch=489-step=807030.ckpt'
     
-    latent_embedder_checkpoint = './runs/LDM-first-stage-2023_10_12_172125/last.ckpt'
-    latent_embedder = latent_embedder.load_from_checkpoint(latent_embedder_checkpoint, time_embedder=None)
+    # latent_embedder_checkpoint = './runs/LDM-first-stage-2023_10_12_172125/last.ckpt'
+    # latent_embedder = latent_embedder.load_from_checkpoint(latent_embedder_checkpoint, time_embedder=None)
 
     # ------------ Initialize Pipeline ------------
     # pipeline = DiffusionPipeline.load_from_checkpoint(
@@ -120,7 +120,7 @@ if __name__ == "__main__":
         noise_estimator_kwargs=noise_estimator_kwargs,
         noise_scheduler=noise_scheduler, 
         noise_scheduler_kwargs = noise_scheduler_kwargs,
-        latent_embedder=latent_embedder,
+        # latent_embedder=latent_embedder,
         # mask_embedder=mask_embedder,
         estimator_objective='x_T',
         estimate_variance=False, 
@@ -130,7 +130,7 @@ if __name__ == "__main__":
         do_input_centering=False,
         clip_x0=False,
         # std_norm = 0.8856033086776733
-        std_norm=0.7322904
+        std_norm=None
     )
     
 
@@ -144,7 +144,7 @@ if __name__ == "__main__":
     )
 
     image_logger = ImageGenerationLogger(
-        noise_shape=(6, 12, 12, 6),
+        noise_shape=(2, 192, 192, 96),
         save_dir=str(save_dir),
         save_every_n_epochs=15,
         save=True
@@ -152,10 +152,10 @@ if __name__ == "__main__":
 
     trainer = Trainer(
         logger      = logger,
-        # strategy    = 'ddp_find_unused_parameters_true',
-        # devices     = 4,
-        # num_nodes   = 2,  
-        precision   = 32,
+        strategy    = 'ddp_find_unused_parameters_true',
+        devices     = 4,
+        num_nodes   = 2,  
+        precision   = 16,
         accelerator = 'gpu',
         # gradient_clip_val=0.5,
         default_root_dir = save_dir,

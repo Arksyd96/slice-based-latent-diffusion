@@ -89,7 +89,7 @@ class DiffusionPipeline(BasicModel):
         #     x_0 = torch.stack(batch, dim=0)
         #     x_0 = x_0.permute(0, 2, 3, 4, 1) # => [B, 2, 16, 16, 64]
 
-        x_0 = self.latent_embedder.encode(x_0) if self.latent_embedder is not None else x_0
+        # x_0 = self.latent_embedder.encode(x_0) if self.latent_embedder is not None else x_0
             
             # x_0 = torch.nn.functional.pad(x_0, (1, 1, 1, 1), mode='constant', value=0)
             # x_0 = spatially_stack_latents(x_0, (8, 8), index_channel=False) # => [B, 2, 128, 128]

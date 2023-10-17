@@ -194,14 +194,16 @@ class ImageGenerationLogger(pl.Callback):
         pl_module.eval()
         if trainer.global_rank == 0 and (trainer.current_epoch + 1) % self.save_every_n_epochs == 0:
             with torch.no_grad():
-                condition = trainer.train_dataloader.dataset.sample(1)[1]
-                condition = condition.to(pl_module.device, torch.float32)
+                # condition = trainer.train_dataloader.dataset.sample(1)[1]
+                # condition = condition.to(pl_module.device, torch.float32)
 
-                sample_img = pl_module.sample(num_samples=1, img_size=self.noise_shape, condition=condition).detach()
-                # sample_img = sample_img.permute(0, 4, 1, 2, 3).squeeze(0)
+                sample_img = pl_module.sample(num_samples=1, img_size=self.noise_shape, condition=None).detach()
+                sample_img = sample_img.permute(0, 4, 1, 2, 3).squeeze(0)
                 
-                sample_img = sample_img.mul(pl_module.std_norm)
-                sample_img = pl_module.latent_embedder.decode(sample_img, emb=None)
+                if pl_module.std_norm is not None:    
+                    sample_img = sample_img.mul(pl_module.std_norm)
+
+                # sample_img = pl_module.latent_embedder.decode(sample_img, emb=None)
 
                 # =>
                 sample_img = sample_img.squeeze(0)
@@ -221,6 +223,6 @@ class ImageGenerationLogger(pl.Callback):
                 wandb.log({
                     'Reconstruction examples': wandb.Image(
                         sample_img.cpu().numpy(), 
-                        caption='[{}] - {}'.format(trainer.current_epoch, format_condition(condition[0].cpu().numpy()))
+                        caption='[{}]'.format(trainer.current_epoch)#, format_condition(condition[0].cpu().numpy()))
                     )
                 })
