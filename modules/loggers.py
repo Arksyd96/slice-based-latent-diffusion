@@ -1,7 +1,6 @@
 from typing import Any
 import numpy as np
 import os
-from pytorch_lightning.utilities.types import STEP_OUTPUT
 import torch
 import pytorch_lightning as pl
 import wandb
