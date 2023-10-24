@@ -12,6 +12,7 @@ from pytorch_lightning.loggers import wandb as wandb_logger
 from modules.data import BRATSDataModule
 from modules.models.embedders.latent_embedders import VAE, VAEGAN
 from modules.loggers import ImageReconstructionLogger
+from pytorch_lightning.strategies import DDPStrategy
 
 os.environ['WANDB_API_KEY'] = 'bdc8857f9d6f7010cff35bcdc0ae9413e05c75e1'
 
@@ -48,22 +49,24 @@ if __name__ == "__main__":
     )
 
     # ------------ Initialize Model ------------
-    model = VAE(
-        in_channels     = 2, 
-        out_channels    = 2, 
-        emb_channels    = 6,
-        spatial_dims    = 3, # 2D or 3D
-        hid_chs         = [64, 128, 256, 512], 
-        kernel_sizes    = [3, 3, 3, 3],
-        strides         = [1, 2, 2, 2],
-        time_embedder   = None,
-        deep_supervision = False,
-        use_attention   = 'none',
-        loss            = torch.nn.L1Loss,
-        embedding_loss_weight = 1e-6,
-        optimizer_kwargs = {'lr': 1e-5},
-        perceptual_loss_weight = 0.5
-    )
+    # model = VAE(
+    #     in_channels     = 2, 
+    #     out_channels    = 2, 
+    #     emb_channels    = 6,
+    #     spatial_dims    = 3, # 2D or 3D
+    #     hid_chs         = [64, 128, 256, 512], 
+    #     kernel_sizes    = [3, 3, 3, 3],
+    #     strides         = [1, 2, 2, 2],
+    #     time_embedder   = None,
+    #     deep_supervision = False,
+    #     use_attention   = 'none',
+    #     loss            = torch.nn.L1Loss,
+    #     embedding_loss_weight = 1e-6,
+    #     optimizer_kwargs = {'lr': 1e-5},
+    #     perceptual_loss_weight = 0.5
+    # )
+
+    model = VAE.load_from_checkpoint('./runs/LDM-first-stage-2023_10_24_142844/')
 
     # model = VAEGAN(
     #     in_channels     = 2, 
@@ -96,11 +99,13 @@ if __name__ == "__main__":
         save      = False,
         save_dir  = save_dir
     )
+
+    ddp = DDPStrategy(process_group_backend='nccl')
         
     trainer = Trainer(
         logger      = logger,
-        strategy    = 'ddp',
-        devices     = 4,
+        strategy    = ddp,
+        devices     = 8,
         num_nodes   = 1,  
         precision   = 32,
         accelerator = 'gpu',
@@ -110,7 +115,7 @@ if __name__ == "__main__":
         check_val_every_n_epoch = 1,
         log_every_n_steps = 1, 
         min_epochs = 100,
-        max_epochs = 2000,
+        max_epochs = 4000,
         num_sanity_val_steps = 0,
         callbacks=[checkpointing, image_logger]
     )

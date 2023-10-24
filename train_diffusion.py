@@ -49,7 +49,7 @@ if __name__ == "__main__":
         # vertical_flip   = 0.5,
         # rotation        = (0, 90),
         # random_crop_size = (96, 96),
-        dtype           = torch.float16,
+        dtype           = torch.float32,
         include_radiomics = False
     )
 
@@ -128,7 +128,7 @@ if __name__ == "__main__":
         # std_norm = 0.8856033086776733
         std_norm=None
     )
-    
+
 
     # -------------- Training Initialization ---------------
     checkpointing = ModelCheckpoint(
