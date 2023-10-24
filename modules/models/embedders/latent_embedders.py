@@ -749,6 +749,7 @@ class VAE(BasicModel):
         #     for _ in range(1, deep_supervision+1)
         # ])
         
+        self.save_hyperparameters()
         
 
     def encode_timestep(self, timestep):

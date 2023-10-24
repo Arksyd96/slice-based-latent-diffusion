@@ -35,8 +35,6 @@ class ImageReconstructionLogger(pl.Callback):
                     ['train', 'val']
                 ):
                     batch = dataset.sample(self.n_samples)
-                    # x, pos = batch
-                    # x, pos = x.to(pl_module.device, torch.float32), pos.to(pl_module.device, torch.long)
                     
                     x = batch[0]
                     x = x.to(pl_module.device, torch.float32)
@@ -63,23 +61,6 @@ class ImageReconstructionLogger(pl.Callback):
                     ], dim=0)
                     
                     img = torch.cat([originals, reconstructed], dim=0)
-                    # else:
-                    #     # shape [B, 2, 128, 128, 64]
-                    #     x = x[:, :, :, :, ::4]
-                    #     x = x[:, 0].permute(0, 3, 2, 1)
-                        
-                    #     x_hat = x_hat[:, :, :, :, ::4]
-                    #     x_hat = x_hat[:, 0].permute(0, 3, 2, 1) # i suppose slices are channels
-                        
-                    #     originals = torch.cat([
-                    #         torch.hstack([img for img in x[:, idx, ...]]) for idx in range(x.shape[1])
-                    #     ], dim=0)
-                        
-                    #     reconstructed = torch.cat([
-                    #         torch.hstack([img for img in x_hat[:, idx, ...]]) for idx in range(x_hat.shape[1])
-                    #     ], dim=0)
-                        
-                    #     img = torch.cat([originals, reconstructed], dim=0)
 
                     # [-1, 1] => [0, 255]
                     img = img.add(1).div(2).mul(255).clamp(0, 255).to(torch.uint8)

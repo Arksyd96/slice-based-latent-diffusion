@@ -9,7 +9,6 @@ import pytorch_lightning as pl
 class VeryBasicModel(pl.LightningModule):
     def __init__(self):
         super().__init__()
-        self.save_hyperparameters()
         self._step_train = 0
         self._step_val = 0
         self._step_test = 0
