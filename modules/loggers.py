@@ -31,7 +31,7 @@ class ImageReconstructionLogger(pl.Callback):
             
             with torch.no_grad():    
                 for dataset, split in zip(
-                    [trainer.train_dataloader.dataset, trainer.val_dataloaders.dataset], 
+                    [trainer.train_dataloader.dataset, trainer.val_dataloaders[0].dataset], 
                     ['train', 'val']
                 ):
                     batch = dataset.sample(self.n_samples)

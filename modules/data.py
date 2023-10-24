@@ -122,7 +122,7 @@ class BRATSDataModule(LightningDataModule):
         
     def setup(self, stage=None):      
         self.data = np.load(self.data_dir, allow_pickle=True)
-        self.data = torch.from_numpy(self.data[:, 0, None])
+        self.data = torch.from_numpy(self.data)
 
         ##############################
         if self.include_radiomics:

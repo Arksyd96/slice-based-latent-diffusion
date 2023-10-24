@@ -125,8 +125,8 @@ if __name__ == '__main__':
     # setting latent variable sizes
     latent_dim = 2048
 
-    discriminator = Discriminator(in_channels=1, num_channels=1024).to(device)
-    generator = Generator(latent_dim=latent_dim, out_channels=1, num_channels=512).to(device)
+    discriminator = Discriminator(in_channels=2, num_channels=1024).to(device)
+    generator = Generator(latent_dim=latent_dim, out_channels=2, num_channels=512).to(device)
 
     discriminator.apply(weights_init_normal)
     generator.apply(weights_init_normal)

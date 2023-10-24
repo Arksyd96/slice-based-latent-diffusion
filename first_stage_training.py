@@ -17,7 +17,7 @@ os.environ['WANDB_API_KEY'] = 'bdc8857f9d6f7010cff35bcdc0ae9413e05c75e1'
 
 if __name__ == "__main__":
     pl.seed_everything(42)
-    torch.set_float32_matmul_precision('high')
+    # torch.set_float32_matmul_precision('high')
 
     # --------------- Settings --------------------
     current_time = datetime.now().strftime("%Y_%m_%d_%H%M%S")
@@ -100,7 +100,7 @@ if __name__ == "__main__":
     trainer = Trainer(
         logger      = logger,
         strategy    = 'ddp',
-        devices     = 8,
+        devices     = 4,
         num_nodes   = 1,  
         precision   = 32,
         accelerator = 'gpu',

@@ -22,8 +22,6 @@ from modules.data import BRATSDataModule
 import os
 os.environ['WANDB_API_KEY'] = 'bdc8857f9d6f7010cff35bcdc0ae9413e05c75e1'
 
-torch.set_float32_matmul_precision('high')
-
 if __name__ == "__main__":
     # --------------- Settings --------------------
     current_time = datetime.now().strftime("%Y_%m_%d_%H%M%S")
