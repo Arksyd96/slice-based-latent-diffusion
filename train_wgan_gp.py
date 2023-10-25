@@ -1,4 +1,4 @@
-import datetime
+from datetime import datetime
 import os
 
 import torch
@@ -188,15 +188,15 @@ class WGAN(pl.LightningModule):
 class WGANLogger(pl.Callback):
     def __init__(
         self,
-        noise_shape,
+        num_samples,
         log_every_n_epochs = 5,
         save      = True,
         save_dir  = os.path.curdir
     ) -> None:
         super().__init__()
         self.save = save
+        self.num_samples = num_samples
         self.log_every_n_epochs = log_every_n_epochs
-        self.noise_shape = noise_shape
         self.save_dir = '{}/images'.format(save_dir)
 
         if not os.path.exists(self.save_dir):
@@ -206,7 +206,7 @@ class WGANLogger(pl.Callback):
         pl_module.eval()
         if trainer.global_rank == 0 and (trainer.current_epoch + 1) % self.log_every_n_epochs == 0:
             with torch.no_grad():
-                sample_img = pl_module.sample(num_samples=1).detach()
+                sample_img = pl_module.sample(num_samples=self.num_samples).detach()
                 sample_img = sample_img.permute(0, 4, 1, 2, 3).squeeze(0)
             
                 # selecting subset of the volume to display
@@ -281,7 +281,7 @@ if __name__ == "__main__":
     )
     
     image_logger = WGANLogger(
-        n_samples = 1,
+        num_samples = 1,
         log_every_n_epochs = 10, 
         save      = False,
         save_dir  = save_dir
