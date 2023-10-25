@@ -169,7 +169,7 @@ class WGAN(pl.LightningModule):
             d_optimizer.zero_grad(set_to_none=True)
 
             # Sample fake volumes
-            z = torch.randn(real_samples.size(0), self.latent_dim, 1, 1, 1).to(device=real_samples.device)
+            z = torch.randn(real_samples.size(0), self.latent_dim).to(device=real_samples.device)
             fake_samples = self.generator(z)
 
             d_real_loss = self.discriminator(real_samples).mean()
@@ -193,7 +193,7 @@ class WGAN(pl.LightningModule):
         # ----------------
         g_optimizer.zero_grad(set_to_none=True)
 
-        z = torch.randn(real_samples.size(0), self.latent_dim, 1, 1, 1).to(device=real_samples.device)
+        z = torch.randn(real_samples.size(0), self.latent_dim).to(device=real_samples.device)
         fake_samples = self.generator(z)
         g_loss = -self.discriminator(fake_samples).mean()
 
@@ -215,7 +215,7 @@ class WGAN(pl.LightningModule):
         return [g_optimizer, d_optimizer], []
     
     def sample(self, num_samples):
-        z = torch.randn(num_samples, self.latent_dim, 1, 1, 1).to(device=self.device)
+        z = torch.randn(num_samples, self.latent_dim).to(device=self.device)
         return self.generator(z)
     
 
