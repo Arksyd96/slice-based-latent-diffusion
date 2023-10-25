@@ -92,8 +92,8 @@ class WGAN(pl.LightningModule):
             ReshapeToMinus1x1()
         )
 
-        self.generator.apply(self._init_weights)
-        self.discriminator.apply(self._init_weights)
+        # self.generator.apply(self._init_weights)
+        # 1self.discriminator.apply(self._init_weights)
 
         self.save_hyperparameters()
         self.automatic_optimization = False
@@ -257,7 +257,7 @@ if __name__ == "__main__":
         vertical_flip   = 0.2,
         # rotation        = (0, 90),
         # random_crop_size = (96, 96),
-        dtype           = torch.float16,
+        dtype           = torch.float32,
         include_radiomics = False
     )
 
@@ -266,8 +266,8 @@ if __name__ == "__main__":
         in_channels     = 2,
         out_channels    = 2,
         latent_dim      = 2048,
-        lr              = 0.0002,
-        n_critic        = 4,
+        lr              = 0.00005,
+        n_critic        = 1,
         clip_value      = 0.01
     )
 
@@ -294,7 +294,7 @@ if __name__ == "__main__":
         strategy    = ddp,
         devices     = 8,
         num_nodes   = 1,  
-        precision   = 'bf16',
+        precision   = 32,
         accelerator = 'gpu',
         # gradient_clip_val=0.5,
         default_root_dir = save_dir,
