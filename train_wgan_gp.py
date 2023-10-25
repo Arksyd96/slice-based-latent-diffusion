@@ -137,7 +137,7 @@ class WGAN(pl.LightningModule):
         
         # Get random interpolation between real and fake samples
         interpolates = (alpha * real_samples + ((1 - alpha) * fake_samples)).requires_grad_(True)
-        d_interpolates = self.discriminator(interpolates).mean() # (batch_size, 1)
+        d_interpolates = self.discriminator(interpolates) # (batch_size, 1)
         
         fake = torch.ones((real_samples.size(0), 1), device=real_samples.device)
         
