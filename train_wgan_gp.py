@@ -227,7 +227,8 @@ class WGANLogger(pl.Callback):
                         caption='[{}]'.format(trainer.current_epoch)#, format_condition(condition[0].cpu().numpy()))
                     )
                 })
-    
+
+os.environ['WANDB_API_KEY'] = 'bdc8857f9d6f7010cff35bcdc0ae9413e05c75e1'
 
 if __name__ == "__main__":
     pl.seed_everything(42)
@@ -256,7 +257,7 @@ if __name__ == "__main__":
         vertical_flip   = 0.2,
         # rotation        = (0, 90),
         # random_crop_size = (96, 96),
-        dtype           = torch.float32,
+        dtype           = torch.float16,
         include_radiomics = False
     )
 
@@ -294,7 +295,7 @@ if __name__ == "__main__":
         strategy    = ddp,
         devices     = 8,
         num_nodes   = 1,  
-        precision   = 32,
+        precision   = 'bf16',
         accelerator = 'gpu',
         # gradient_clip_val=0.5,
         default_root_dir = save_dir,

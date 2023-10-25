@@ -121,8 +121,9 @@ def calc_gradient_penalty(netD, real_data, fake_data):
     gradient_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean() * LAMBDA
     return gradient_penalty
 
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+os.environ['WANDB_API_KEY'] = 'bdc8857f9d6f7010cff35bcdc0ae9413e05c75e1'
 
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 if __name__ == '__main__':
     current_time = datetime.now().strftime("%Y_%m_%d_%H%M%S")
