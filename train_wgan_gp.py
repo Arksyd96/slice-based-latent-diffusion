@@ -69,7 +69,7 @@ class WGAN(pl.LightningModule):
         )
 
         self.discriminator = nn.Sequential(
-            nn.Conv3d(1, 32, kernel_size=3, stride=1, padding=1, bias=False),
+            nn.Conv3d(in_channels, 32, kernel_size=3, stride=1, padding=1, bias=False),
             nn.LeakyReLU(0.2, inplace=True),
 
             nn.Conv3d(32, 64, kernel_size=4, stride=2, padding=1, bias=False),
@@ -247,7 +247,7 @@ if __name__ == "__main__":
 
     # ------------ Load Data ----------------
     datamodule = BRATSDataModule(
-        data_dir        = './data/second_stage_dataset_192x192.npy',
+        data_dir        = './data/second_stage_dataset_192x192_100.npy',
         train_ratio     = 1.0,
         norm            = 'centered-norm', 
         batch_size      = 2,
