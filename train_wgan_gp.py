@@ -130,7 +130,7 @@ class WGAN(pl.LightningModule):
         gradient_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean()
         return gradient_penalty
 
-    def training_step(self, batch, batch_idx, optimizer_idx):
+    def training_step(self, batch, batch_idx):
         real_samples, = batch
         g_optimizer, d_optimizer = self.optimizers()
 
