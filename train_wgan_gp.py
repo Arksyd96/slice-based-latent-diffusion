@@ -3,6 +3,7 @@ import os
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import pytorch_lightning as pl
 from pytorch_lightning.trainer import Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint
@@ -12,9 +13,84 @@ import wandb
 from torchvision.utils import save_image
 from modules.data import BRATSDataModule
 
-class ReshapeToMinus1x1(nn.Module):
+class Discriminator(nn.Module):
+    def __init__(self, in_channels, num_channels = 512):
+        super(Discriminator, self).__init__()        
+        
+        self.conv1 = nn.Conv3d(in_channels, num_channels // 16, kernel_size=4, stride=2, padding=1)
+        self.conv2 = nn.Conv3d(num_channels//16, num_channels//8, kernel_size=4, stride=2, padding=1)
+        self.bn2 = nn.BatchNorm3d(num_channels//8)
+        self.conv3 = nn.Conv3d(num_channels//8, num_channels//4, kernel_size=4, stride=2, padding=1)
+        self.bn3 = nn.BatchNorm3d(num_channels//4)
+        self.conv4 = nn.Conv3d(num_channels//4, num_channels//2, kernel_size=4, stride=2, padding=1)
+        self.bn4 = nn.BatchNorm3d(num_channels//2)
+        self.conv5 = nn.Conv3d(num_channels//2, num_channels, kernel_size=4, stride=2, padding=1)
+        self.bn5 = nn.BatchNorm3d(num_channels)
+        
+        self.conv6 = nn.Conv3d(num_channels, 1, kernel_size=4, stride=2, padding=1)
+        
     def forward(self, x):
-        return x.view(-1, 1)
+        h1 = F.leaky_relu(self.conv1(x), negative_slope=0.2)
+        h2 = F.leaky_relu(self.bn2(self.conv2(h1)), negative_slope=0.2)
+        h3 = F.leaky_relu(self.bn3(self.conv3(h2)), negative_slope=0.2)
+        h4 = F.leaky_relu(self.bn4(self.conv4(h3)), negative_slope=0.2)
+        h5 = F.leaky_relu(self.bn5(self.conv5(h4)), negative_slope=0.2)
+        h6 = self.conv6(h5)
+        output = h6
+
+        return output
+    
+
+class Generator(nn.Module):
+    def __init__(self, latent_dim, out_channels, num_channels = 512):
+        super(Generator, self).__init__()
+        _c = num_channels
+        self.latent_dim = latent_dim
+        
+        self.fc = nn.Linear(self.latent_dim, 512 * 6 * 6 * 3)
+        self.bn1 = nn.BatchNorm3d(_c)
+        
+        self.tp_conv2 = nn.Conv3d(_c, _c // 2, kernel_size=3, stride=1, padding=1, bias=True)
+        self.bn2 = nn.BatchNorm3d(_c // 2)
+        
+        self.tp_conv3 = nn.Conv3d(_c // 2, _c // 4, kernel_size=3, stride=1, padding=1, bias=True)
+        self.bn3 = nn.BatchNorm3d(_c // 4)
+        
+        self.tp_conv4 = nn.Conv3d(_c // 4, _c // 8, kernel_size=3, stride=1, padding=1, bias=True)
+        self.bn4 = nn.BatchNorm3d(_c // 8)
+
+        self.tp_conv5 = nn.Conv3d(_c // 8, _c // 16, kernel_size=3, stride=1, padding=1, bias=True)
+        self.bn5 = nn.BatchNorm3d(_c // 16)
+        
+        self.tp_conv6 = nn.Conv3d(_c // 16, out_channels, kernel_size=3, stride=1, padding=1, bias=True)
+        
+    def forward(self, noise):
+        h = self.fc(noise)
+        h = h.view(-1, 512, 6, 6, 3)
+        h = F.relu(self.bn1(h))
+
+        h = F.upsample(h,scale_factor = 2)
+        h = self.tp_conv2(h)
+        h = F.relu(self.bn2(h))
+        
+        h = F.upsample(h,scale_factor = 2)
+        h = self.tp_conv3(h)
+        h = F.relu(self.bn3(h))
+
+        h = F.upsample(h,scale_factor = 2)
+        h = self.tp_conv4(h)
+        h = F.relu(self.bn4(h))
+
+        h = F.upsample(h,scale_factor = 2)
+        h = self.tp_conv5(h)
+        h = F.relu(self.bn5(h))
+
+        h = F.upsample(h,scale_factor = 2)
+        h = self.tp_conv6(h)
+        output = F.tanh(h)
+
+        return output
+
 
 class WGAN(pl.LightningModule):
     def __init__(
@@ -37,60 +113,8 @@ class WGAN(pl.LightningModule):
         self.clip_value = clip_value
         self.lambda_gp = lambda_gp
 
-        self.generator = nn.Sequential(
-            nn.ConvTranspose3d(self.latent_dim, 512, kernel_size=(6, 6, 3), stride=1, padding=0, bias=False),
-            nn.ReLU(True),
-            nn.ConvTranspose3d(512, 512, kernel_size=4, stride=2, padding=1, bias=False),
-            nn.BatchNorm3d(512, affine=True),
-            nn.ReLU(True),
-
-            nn.ConvTranspose3d(512, 256, kernel_size=4, stride=2, padding=1, bias=False),
-            nn.BatchNorm3d(256, affine=True),
-            nn.ReLU(True),
-
-            nn.Dropout(p=0.5),
-
-            nn.ConvTranspose3d(256, 128, kernel_size=4, stride=2, padding=1, bias=False),
-            nn.BatchNorm3d(128, affine=True),
-            nn.ReLU(True),
-
-            nn.ConvTranspose3d(128, 64, kernel_size=4, stride=2, padding=1, bias=False),
-            nn.BatchNorm3d(64, affine=True),
-            nn.ReLU(True),
-
-            nn.Dropout(p=0.5),
-
-            nn.ConvTranspose3d(64, 32, kernel_size=4, stride=2, padding=1, bias=False),
-            nn.BatchNorm3d(32, affine=True),
-            nn.ReLU(True),
-
-            nn.Conv3d(32, out_channels, kernel_size=3, stride=1, padding=1, bias=False),
-            nn.Tanh()
-        )
-
-        self.discriminator = nn.Sequential(
-            nn.Conv3d(in_channels, 32, kernel_size=3, stride=1, padding=1, bias=False),
-            nn.LeakyReLU(0.2, inplace=True),
-
-            nn.Conv3d(32, 64, kernel_size=4, stride=2, padding=1, bias=False),
-            nn.BatchNorm3d(64, affine=True),
-            nn.LeakyReLU(0.2, inplace=True),
-
-            nn.Conv3d(64, 128, kernel_size=4, stride=2, padding=1, bias=False),
-            nn.BatchNorm3d(128, affine=True),
-            nn.LeakyReLU(0.2, inplace=True),
-
-            nn.Conv3d(128, 256, kernel_size=4, stride=2, padding=1, bias=False),
-            nn.BatchNorm3d(256, affine=True),
-            nn.LeakyReLU(0.2, inplace=True),
-
-            nn.Conv3d(256, 512, kernel_size=4, stride=2, padding=1, bias=False),
-            nn.BatchNorm3d(512, affine=True),
-            nn.LeakyReLU(0.2, inplace=True),
-
-            nn.Conv3d(512, 1, kernel_size=(12, 12, 6), stride=1, padding=0),
-            ReshapeToMinus1x1()
-        )
+        self.generator = Generator(latent_dim, out_channels)
+        self.discriminator = Discriminator(in_channels)
 
         # self.generator.apply(self._init_weights)
         # 1self.discriminator.apply(self._init_weights)
@@ -113,7 +137,7 @@ class WGAN(pl.LightningModule):
         
         # Get random interpolation between real and fake samples
         interpolates = (alpha * real_samples + ((1 - alpha) * fake_samples)).requires_grad_(True)
-        d_interpolates = self.discriminator(interpolates) # (batch_size, 1)
+        d_interpolates = self.discriminator(interpolates).mean() # (batch_size, 1)
         
         fake = torch.ones((real_samples.size(0), 1), device=real_samples.device)
         
@@ -130,6 +154,7 @@ class WGAN(pl.LightningModule):
         gradient_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean()
         return gradient_penalty
 
+
     def training_step(self, batch, batch_idx):
         real_samples, = batch
         g_optimizer, d_optimizer = self.optimizers()
@@ -137,6 +162,9 @@ class WGAN(pl.LightningModule):
         # ---------------------
         #  Train Discriminator
         # ---------------------
+        for p in self.discriminator.parameters():
+            p.requires_grad = True
+
         for _ in range(self.n_critic):
             d_optimizer.zero_grad(set_to_none=True)
 
@@ -144,22 +172,27 @@ class WGAN(pl.LightningModule):
             z = torch.randn(real_samples.size(0), self.latent_dim, 1, 1, 1).to(device=real_samples.device)
             fake_samples = self.generator(z)
 
-            d_real_loss = self.discriminator(real_samples)
-            d_fake_loss = self.discriminator(fake_samples)
+            d_real_loss = self.discriminator(real_samples).mean()
+            d_fake_loss = self.discriminator(fake_samples.detach()).mean()
             
             # Gradient penalty
             gradient_penalty = self.compute_gradient_penalty(real_samples, fake_samples)
 
             # Adversarial loss
-            d_loss = (d_fake_loss.mean() - d_real_loss.mean()) + self.lambda_gp * gradient_penalty
+            d_loss = (d_fake_loss - d_real_loss) + self.lambda_gp * gradient_penalty
 
             self.manual_backward(d_loss)
             nn.utils.clip_grad_norm_(self.discriminator.parameters(), self.clip_value)
             d_optimizer.step()
 
+        for p in self.discriminator.parameters():
+            p.requires_grad = False
+
         # -----------------
         #  Train Generator
-        # -----------------
+        # ----------------
+        g_optimizer.zero_grad(set_to_none=True)
+
         z = torch.randn(real_samples.size(0), self.latent_dim, 1, 1, 1).to(device=real_samples.device)
         fake_samples = self.generator(z)
         g_loss = -self.discriminator(fake_samples).mean()
@@ -173,6 +206,7 @@ class WGAN(pl.LightningModule):
         self.log('d_fake_loss', d_fake_loss.mean(), prog_bar=True, logger=True, on_step=True, on_epoch=True, sync_dist=True)
         self.log('d_loss', d_loss, prog_bar=True, logger=True, on_step=True, on_epoch=True, sync_dist=True)
         self.log('g_loss', g_loss, prog_bar=True, logger=True, on_step=True, on_epoch=True, sync_dist=True)
+        self.log('gradient_penalty', gradient_penalty, prog_bar=True, logger=True, on_step=True, on_epoch=True, sync_dist=True)
 
 
     def configure_optimizers(self):
@@ -266,8 +300,8 @@ if __name__ == "__main__":
         in_channels     = 2,
         out_channels    = 2,
         latent_dim      = 2048,
-        lr              = 0.00005,
-        n_critic        = 1,
+        lr              = 0.0002,
+        n_critic        = 3,
         clip_value      = 0.01
     )
 
