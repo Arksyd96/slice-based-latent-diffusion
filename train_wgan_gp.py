@@ -169,10 +169,10 @@ class WGAN(pl.LightningModule):
         g_optimizer.step()
 
         # logging
-        self.log('d_real_loss', d_real_loss.mean(), prog_bar=True, logger=True, on_step=True, on_epoch=True)
-        self.log('d_fake_loss', d_fake_loss.mean(), prog_bar=True, logger=True, on_step=True, on_epoch=True)
-        self.log('d_loss', d_loss, prog_bar=True, logger=True, on_step=True, on_epoch=True)
-        self.log('g_loss', g_loss, prog_bar=True, logger=True, on_step=True, on_epoch=True)
+        self.log('d_real_loss', d_real_loss.mean(), prog_bar=True, logger=True, on_step=True, on_epoch=True, sync_dist=True)
+        self.log('d_fake_loss', d_fake_loss.mean(), prog_bar=True, logger=True, on_step=True, on_epoch=True, sync_dist=True)
+        self.log('d_loss', d_loss, prog_bar=True, logger=True, on_step=True, on_epoch=True, sync_dist=True)
+        self.log('g_loss', g_loss, prog_bar=True, logger=True, on_step=True, on_epoch=True, sync_dist=True)
 
 
     def configure_optimizers(self):
@@ -274,7 +274,6 @@ if __name__ == "__main__":
     # -------------- Training Initialization ---------------
     checkpointing = ModelCheckpoint(
         dirpath     = save_dir, # dirpath
-        monitor     = 'val/loss', # 'val/ae_loss_epoch',
         every_n_epochs = 1,
         save_last   = True,
         save_top_k  = 1,
