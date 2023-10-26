@@ -27,7 +27,8 @@ class Discriminator(nn.Module):
         self.conv5 = nn.Conv3d(num_channels//2, num_channels, kernel_size=4, stride=2, padding=1)
         self.bn5 = nn.BatchNorm3d(num_channels)
         
-        self.conv6 = nn.Conv3d(num_channels, 1, kernel_size=4, stride=2, padding=1)
+        self.global_pool = nn.AdaptiveAvgPool3d(1)
+        self.fc = nn.Linear(num_channels, 1)
         
     def forward(self, x):
         h1 = F.leaky_relu(self.conv1(x), negative_slope=0.2)
@@ -35,9 +36,8 @@ class Discriminator(nn.Module):
         h3 = F.leaky_relu(self.bn3(self.conv3(h2)), negative_slope=0.2)
         h4 = F.leaky_relu(self.bn4(self.conv4(h3)), negative_slope=0.2)
         h5 = F.leaky_relu(self.bn5(self.conv5(h4)), negative_slope=0.2)
-        h6 = self.conv6(h5)
-        output = h6
-
+        avg = self.global_pool(h5)
+        output = self.fc(avg.view(avg.size(0), -1))
         return output
     
 

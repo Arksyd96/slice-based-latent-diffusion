@@ -41,8 +41,7 @@ class Discriminator(nn.Module):
         h3 = F.leaky_relu(self.bn3(self.conv3(h2)), negative_slope=0.2)
         h4 = F.leaky_relu(self.bn4(self.conv4(h3)), negative_slope=0.2)
         h5 = F.leaky_relu(self.bn5(self.conv5(h4)), negative_slope=0.2)
-        h6 = self.conv6(h5)
-        output = h6
+        output = h5
 
         return output
     
