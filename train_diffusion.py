@@ -3,6 +3,7 @@ os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 
 from datetime import datetime
 import torch 
+import pytorch_lightning as pl
 from pytorch_lightning.trainer import Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint
 
@@ -13,6 +14,7 @@ from modules.models.estimators import UNet
 from modules.models.embedders import TimeEmbbeding
 from modules.models.noise_schedulers import GaussianNoiseScheduler
 from modules.loggers import ImageGenerationLogger
+from modules.models.embedders.latent_embedders import VAE
 
 import torch.multiprocessing
 torch.multiprocessing.set_sharing_strategy('file_system')
@@ -23,27 +25,27 @@ import os
 os.environ['WANDB_API_KEY'] = 'bdc8857f9d6f7010cff35bcdc0ae9413e05c75e1'
 
 if __name__ == "__main__":
+    pl.seed_everything(42)
+    torch.set_float32_matmul_precision('high')
+
     # --------------- Settings --------------------
     current_time = datetime.now().strftime("%Y_%m_%d_%H%M%S")
-    save_dir = '{}/runs/DDPM-{}'.format(os.path.curdir, str(current_time))
+    save_dir = '{}/runs/LDM-second-stage-{}'.format(os.path.curdir, str(current_time))
     os.makedirs(save_dir, exist_ok=True)
 
     # --------------- Logger --------------------
     logger = wandb_logger.WandbLogger(
-        # project='slice-based-latent-diffusion',
-        project='comparative-models', 
-        name='DDPM (3D + mask)',
-        save_dir=save_dir,
-        # id='24hyhi7b',
-        # resume="must"
+        project = 'comparative-models', 
+        name    = 'LDM second-stage (VAE 6x24x24x12)',
+        save_dir = save_dir
     )
 
     datamodule = BRATSDataModule(
-        data_dir        = './data/second_stage_dataset_192x192.npy',
+        data_dir        = './data/second_stage_dataset_192x192_100.npy',
         train_ratio     = 1.0,
         norm            = 'centered-norm', 
         batch_size      = 2,
-        num_workers     = 6,
+        num_workers     = 16,
         shuffle         = True,
         # horizontal_flip = 0.5,
         # vertical_flip   = 0.5,
@@ -72,12 +74,12 @@ if __name__ == "__main__":
 
     noise_estimator = UNet
     noise_estimator_kwargs = {
-        'in_ch': 2,
-        'out_ch': 2,  
+        'in_ch': 6,
+        'out_ch': 6,  
         'spatial_dims': 3,
-        'hid_chs': [32, 64, 128, 256, 512],
-        'kernel_sizes': [3, 3, 3, 3, 3],
-        'strides': [1, 2, 2, 2, 2],
+        'hid_chs': [64, 128, 256, 512],
+        'kernel_sizes': [3, 3, 3, 3],
+        'strides': [1, 2, 2, 2],
         'time_embedder': time_embedder,
         'time_embedder_kwargs': time_embedder_kwargs,
         'cond_embedder': cond_embedder,
@@ -98,13 +100,11 @@ if __name__ == "__main__":
     }
     
     # ------------ Initialize Latent Space  ------------
-    # latent_embedder = VAE
-    # latent_embedder_checkpoint = './runs/first_stage-2023_08_11_230709 (best AE so far + mask)/epoch=489-step=807030.ckpt'
-    
-    # latent_embedder_checkpoint = './runs/LDM-first-stage-2023_10_12_172125/last.ckpt'
-    # latent_embedder = latent_embedder.load_from_checkpoint(latent_embedder_checkpoint, time_embedder=None)
+    latent_embedder_checkpoint = './runs/LDM-first-stage-2023_10_24_181110/last.ckpt'
+    latent_embedder = VAE.load_from_checkpoint(latent_embedder_checkpoint)
 
     # ------------ Initialize Pipeline ------------
+
     # pipeline = DiffusionPipeline.load_from_checkpoint(
     #     './runs/diffusion-2023_10_06_154034 (6 ch - 192x192x96 + mask + cond)/last.ckpt',
     #     latent_embedder=latent_embedder,
@@ -116,8 +116,7 @@ if __name__ == "__main__":
         noise_estimator_kwargs=noise_estimator_kwargs,
         noise_scheduler=noise_scheduler, 
         noise_scheduler_kwargs = noise_scheduler_kwargs,
-        # latent_embedder=latent_embedder,
-        # mask_embedder=mask_embedder,
+        latent_embedder=latent_embedder,
         estimator_objective='x_T',
         estimate_variance=False, 
         use_self_conditioning=False, 
@@ -125,8 +124,8 @@ if __name__ == "__main__":
         classifier_free_guidance_dropout=0.0, # Disable during training by setting to 0
         do_input_centering=False,
         clip_x0=False,
-        # std_norm = 0.8856033086776733
-        std_norm=None
+        slice_based=False,
+        std_norm = 0.9518886804580688
     )
 
 
@@ -140,9 +139,9 @@ if __name__ == "__main__":
     )
 
     image_logger = ImageGenerationLogger(
-        noise_shape=(2, 192, 192, 96),
+        noise_shape=(6, 24, 24, 12),
         save_dir=str(save_dir),
-        save_every_n_epochs=15,
+        save_every_n_epochs=20,
         save=True
     )
 
@@ -150,10 +149,9 @@ if __name__ == "__main__":
         logger      = logger,
         strategy    = 'ddp_find_unused_parameters_true',
         devices     = 4,
-        num_nodes   = 2,  
-        precision   = 16,
+        num_nodes   = 1,  
+        precision   = 32,
         accelerator = 'gpu',
-        # gradient_clip_val=0.5,
         default_root_dir = save_dir,
         enable_checkpointing = True,
         log_every_n_steps = 1, 

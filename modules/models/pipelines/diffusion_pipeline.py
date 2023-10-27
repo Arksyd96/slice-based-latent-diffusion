@@ -35,7 +35,8 @@ class DiffusionPipeline(BasicModel):
         loss=torch.nn.L1Loss,
         loss_kwargs={},
         std_norm=None,
-        sample_every_n_steps = 500
+        sample_every_n_steps = 500,
+        slice_based = False
         ):
         # self.save_hyperparameters(ignore=['noise_estimator', 'noise_scheduler']) 
         super().__init__(optimizer, optimizer_kwargs, lr_scheduler, lr_scheduler_kwargs)
@@ -64,6 +65,7 @@ class DiffusionPipeline(BasicModel):
         self.estimate_variance = estimate_variance
         self.clip_x0 = clip_x0
         self.std_norm = std_norm
+        self.slice_based = slice_based
 
         self.use_ema = use_ema
         if use_ema:
@@ -76,23 +78,24 @@ class DiffusionPipeline(BasicModel):
         x_0 = batch[0]
         condition = batch[1] if len(batch) > 1 else None
 
-        # Embed into latent space or normalize 
-        # batch = []
-        # if self.latent_embedder is not None:
-        #     self.latent_embedder.eval() 
-        #     with torch.no_grad():
-        #         for idx in range(x_0.shape[0]):
-        #             volume = x_0[idx].permute(3, 0, 1, 2) # => [64, 2, 16, 16]
-        #             latents = self.latent_embedder.encode(volume, emb=None)
-        #             batch.append(latents)
+        if self.latent_embedder is not None:
+            # Embed into latent space or normalize 
+            if self.slice_based:
+                batch = []
+                if self.latent_embedder is not None:
+                    self.latent_embedder.eval() 
+                    with torch.no_grad():
+                        for idx in range(x_0.shape[0]):
+                            volume = x_0[idx].permute(3, 0, 1, 2) # => [64, 2, 16, 16]
+                            latents = self.latent_embedder.encode(volume, emb=None)
+                            batch.append(latents)
 
-        #     x_0 = torch.stack(batch, dim=0)
-        #     x_0 = x_0.permute(0, 2, 3, 4, 1) # => [B, 2, 16, 16, 64]
+                    x_0 = torch.stack(batch, dim=0)
+                    x_0 = x_0.permute(0, 2, 3, 4, 1) # => [B, 2, 16, 16, 64]
 
-        # x_0 = self.latent_embedder.encode(x_0) if self.latent_embedder is not None else x_0
-            
-            # x_0 = torch.nn.functional.pad(x_0, (1, 1, 1, 1), mode='constant', value=0)
-            # x_0 = spatially_stack_latents(x_0, (8, 8), index_channel=False) # => [B, 2, 128, 128]
+            else:
+                x_0 = self.latent_embedder.encode(x_0, emb=None)
+
 
         if self.std_norm is not None:
             x_0 = x_0.div(self.std_norm)

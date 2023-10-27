@@ -285,7 +285,7 @@ if __name__ == "__main__":
         train_ratio     = 1.0,
         norm            = 'centered-norm', 
         batch_size      = 2,
-        num_workers     = 32,
+        num_workers     = 16,
         shuffle         = True,
         horizontal_flip = 0.2,
         vertical_flip   = 0.2,
@@ -321,11 +321,10 @@ if __name__ == "__main__":
         save_dir  = save_dir
     )
 
-    ddp = DDPStrategy(process_group_backend='nccl')
         
     trainer = Trainer(
         logger      = logger,
-        strategy    = ddp,
+        strategy    = 'ddp_find_unused_parameters_true',
         devices     = 8,
         num_nodes   = 1,  
         precision   = 32,

@@ -5,7 +5,6 @@ import torch
 import pytorch_lightning as pl
 import wandb
 from torchvision.utils import save_image
-from modules.funcs import reverse_spatial_stack
 
 class ImageReconstructionLogger(pl.Callback):
     def __init__(
@@ -178,15 +177,17 @@ class ImageGenerationLogger(pl.Callback):
                 # condition = condition.to(pl_module.device, torch.float32)
 
                 sample_img = pl_module.sample(num_samples=1, img_size=self.noise_shape, condition=None).detach()
-                sample_img = sample_img.permute(0, 4, 1, 2, 3).squeeze(0)
-                
+
                 if pl_module.std_norm is not None:    
                     sample_img = sample_img.mul(pl_module.std_norm)
 
-                # sample_img = pl_module.latent_embedder.decode(sample_img, emb=None)
+                if pl_module.slice_based:
+                    sample_img = sample_img.permute(0, 4, 1, 2, 3).squeeze(0)
+                    sample_img = pl_module.latent_embedder.decode(sample_img, emb=None)
+                else:
+                    sample_img = pl_module.latent_embedder.decode(sample_img, emb=None)
+                    sample_img = sample_img.permute(0, 4, 1, 2, 3).squeeze(0)
 
-                # =>
-                sample_img = sample_img.squeeze(0)
 
                 # selecting subset of the volume to display
                 sample_img = sample_img[::4, ...] # 64 // 4 = 16
