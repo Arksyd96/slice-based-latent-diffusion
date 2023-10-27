@@ -82,16 +82,15 @@ class DiffusionPipeline(BasicModel):
             # Embed into latent space or normalize 
             if self.slice_based:
                 batch = []
-                if self.latent_embedder is not None:
-                    self.latent_embedder.eval() 
-                    with torch.no_grad():
-                        for idx in range(x_0.shape[0]):
-                            volume = x_0[idx].permute(3, 0, 1, 2) # => [64, 2, 16, 16]
-                            latents = self.latent_embedder.encode(volume, emb=None)
-                            batch.append(latents)
+                self.latent_embedder.eval() 
+                with torch.no_grad():
+                    for idx in range(x_0.shape[0]):
+                        volume = x_0[idx].permute(3, 0, 1, 2) # => [64, 2, 16, 16]
+                        latents = self.latent_embedder.encode(volume, emb=None)
+                        batch.append(latents)
 
-                    x_0 = torch.stack(batch, dim=0)
-                    x_0 = x_0.permute(0, 2, 3, 4, 1) # => [B, 2, 16, 16, 64]
+                x_0 = torch.stack(batch, dim=0)
+                x_0 = x_0.permute(0, 2, 3, 4, 1) # => [B, 2, 16, 16, 64]
 
             else:
                 x_0 = self.latent_embedder.encode(x_0, emb=None)

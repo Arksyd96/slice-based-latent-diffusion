@@ -21,12 +21,13 @@ if __name__ == "__main__":
     model.eval()
 
     datamodule = BRATSDataModule(
-        data_dir        = './data/second_stage_dataset_192x192_100.npy',
+        data_dir        = './data/first_stage_dataset_192x192.npy',
         train_ratio     = 1.0,
         norm            = 'centered-norm', 
-        batch_size      = 1,
+        batch_size      = 16,
         num_workers     = 16,
-        dtype           = torch.float32
+        dtype           = torch.float32,
+        include_radiomics = False
     )
 
     datamodule.prepare_data()

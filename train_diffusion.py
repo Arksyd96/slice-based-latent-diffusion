@@ -15,6 +15,7 @@ from modules.models.embedders import TimeEmbbeding
 from modules.models.noise_schedulers import GaussianNoiseScheduler
 from modules.loggers import ImageGenerationLogger
 from modules.models.embedders.latent_embedders import VAE
+from modules.models.embedders.cond_embedders import ConditionMLP
 
 import torch.multiprocessing
 torch.multiprocessing.set_sharing_strategy('file_system')
@@ -30,13 +31,13 @@ if __name__ == "__main__":
 
     # --------------- Settings --------------------
     current_time = datetime.now().strftime("%Y_%m_%d_%H%M%S")
-    save_dir = '{}/runs/LDM-second-stage-{}'.format(os.path.curdir, str(current_time))
+    save_dir = '{}/runs/SBLDM-second-stage-{}'.format(os.path.curdir, str(current_time))
     os.makedirs(save_dir, exist_ok=True)
 
     # --------------- Logger --------------------
     logger = wandb_logger.WandbLogger(
-        project = 'comparative-models', 
-        name    = 'LDM second-stage (VAE 6x24x24x12)',
+        project = 'proper-slice-based-latent-diffusion', 
+        name    = 'SBLDM-second-stage (VAE 6x24x24x12)',
         save_dir = save_dir
     )
 
@@ -52,13 +53,13 @@ if __name__ == "__main__":
         # rotation        = (0, 90),
         # random_crop_size = (96, 96),
         dtype           = torch.float32,
-        include_radiomics = False
+        include_radiomics = True
     )
 
 
     # ------------ Initialize Model ------------
-    cond_embedder = None
-    # cond_embedder = LabelEmbedder
+    # cond_embedder = None
+    cond_embedder = ConditionMLP
     cond_embedder_kwargs = {
         'in_features': 9, 
         'out_features': 512, 
@@ -100,7 +101,7 @@ if __name__ == "__main__":
     }
     
     # ------------ Initialize Latent Space  ------------
-    latent_embedder_checkpoint = './runs/LDM-first-stage-2023_10_24_181110/last.ckpt'
+    latent_embedder_checkpoint = './runs/SBLDM-first-stage-2023_10_23_154159 (VAE 2D 2x24x24)/last.ckpt'
     latent_embedder = VAE.load_from_checkpoint(latent_embedder_checkpoint)
 
     # ------------ Initialize Pipeline ------------
@@ -124,8 +125,8 @@ if __name__ == "__main__":
         classifier_free_guidance_dropout=0.0, # Disable during training by setting to 0
         do_input_centering=False,
         clip_x0=False,
-        slice_based=False,
-        std_norm = 0.9518886804580688
+        slice_based=True,
+        std_norm = 0.8784011602401733
     )
 
 
@@ -139,7 +140,7 @@ if __name__ == "__main__":
     )
 
     image_logger = ImageGenerationLogger(
-        noise_shape=(6, 24, 24, 12),
+        noise_shape=(6, 24, 24, 96),
         save_dir=str(save_dir),
         save_every_n_epochs=20,
         save=True
