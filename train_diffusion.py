@@ -37,7 +37,7 @@ if __name__ == "__main__":
     # --------------- Logger --------------------
     logger = wandb_logger.WandbLogger(
         project = 'proper-slice-based-latent-diffusion', 
-        name    = 'SBLDM-second-stage (VAE 6x24x24x12)',
+        name    = '[2] SBLDM-second-stage (VAE 6x24x24x12 Austral) ',
         save_dir = save_dir
     )
 
@@ -45,7 +45,7 @@ if __name__ == "__main__":
         data_dir        = './data/second_stage_dataset_192x192_100.npy',
         train_ratio     = 1.0,
         norm            = 'centered-norm', 
-        batch_size      = 2,
+        batch_size      = 4,
         num_workers     = 16,
         shuffle         = True,
         # horizontal_flip = 0.5,
@@ -106,28 +106,28 @@ if __name__ == "__main__":
 
     # ------------ Initialize Pipeline ------------
 
-    # pipeline = DiffusionPipeline.load_from_checkpoint(
-    #     './runs/diffusion-2023_10_06_154034 (6 ch - 192x192x96 + mask + cond)/last.ckpt',
-    #     latent_embedder=latent_embedder,
-    #     std_norm = 0.8856033086776733
-    # )
-
-    pipeline = DiffusionPipeline(
-        noise_estimator=noise_estimator, 
-        noise_estimator_kwargs=noise_estimator_kwargs,
-        noise_scheduler=noise_scheduler, 
-        noise_scheduler_kwargs = noise_scheduler_kwargs,
+    pipeline = DiffusionPipeline.load_from_checkpoint(
+        './runs/SBLDM-second-stage-2023_10_28_054900/last.ckpt',
         latent_embedder=latent_embedder,
-        estimator_objective='x_T',
-        estimate_variance=False, 
-        use_self_conditioning=False, 
-        use_ema=False,
-        classifier_free_guidance_dropout=0.0, # Disable during training by setting to 0
-        do_input_centering=False,
-        clip_x0=False,
-        slice_based=True,
         std_norm = 0.8784011602401733
     )
+
+    # pipeline = DiffusionPipeline(
+    #     noise_estimator=noise_estimator, 
+    #     noise_estimator_kwargs=noise_estimator_kwargs,
+    #     noise_scheduler=noise_scheduler, 
+    #     noise_scheduler_kwargs = noise_scheduler_kwargs,
+    #     latent_embedder=latent_embedder,
+    #     estimator_objective='x_T',
+    #     estimate_variance=False, 
+    #     use_self_conditioning=False, 
+    #     use_ema=False,
+    #     classifier_free_guidance_dropout=0.0, # Disable during training by setting to 0
+    #     do_input_centering=False,
+    #     clip_x0=False,
+    #     slice_based=True,
+    #     std_norm = 0.8784011602401733
+    # )
 
 
     # -------------- Training Initialization ---------------
@@ -157,7 +157,7 @@ if __name__ == "__main__":
         enable_checkpointing = True,
         log_every_n_steps = 1, 
         min_epochs = 100,
-        max_epochs = 3000,
+        max_epochs = 10000,
         num_sanity_val_steps = 0,
         # fast_dev_run = 10,
         callbacks=[checkpointing, image_logger]
