@@ -20,6 +20,7 @@
 /build/
 /data/
 /runs/
+/for_stats/
 
 /lightning_logs/
 
