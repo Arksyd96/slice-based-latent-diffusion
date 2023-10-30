@@ -37,7 +37,7 @@ if __name__ == "__main__":
     # --------------- Logger --------------------
     logger = wandb_logger.WandbLogger(
         project = 'proper-slice-based-latent-diffusion', 
-        name    = '[2] SBLDM-second-stage (VAE 6x24x24x12 Austral) ',
+        name    = 'DDPM (3D + Mask)',
         save_dir = save_dir
     )
 
@@ -45,7 +45,7 @@ if __name__ == "__main__":
         data_dir        = './data/second_stage_dataset_192x192_100.npy',
         train_ratio     = 1.0,
         norm            = 'centered-norm', 
-        batch_size      = 4,
+        batch_size      = 2,
         num_workers     = 16,
         shuffle         = True,
         # horizontal_flip = 0.5,
@@ -53,13 +53,12 @@ if __name__ == "__main__":
         # rotation        = (0, 90),
         # random_crop_size = (96, 96),
         dtype           = torch.float32,
-        include_radiomics = True
+        include_radiomics = False
     )
 
 
     # ------------ Initialize Model ------------
-    # cond_embedder = None
-    cond_embedder = ConditionMLP
+    cond_embedder = None # ConditionMLP
     cond_embedder_kwargs = {
         'in_features': 9, 
         'out_features': 512, 
