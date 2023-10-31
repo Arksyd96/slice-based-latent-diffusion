@@ -2,6 +2,7 @@ import torch
 import argparse
 import sys
 import numpy as np
+from tqdm import tqdm
 
 from modules.models.embedders.latent_embedders import VAEGAN, VAE
 from modules.models.pipelines.diffusion_pipeline import DiffusionPipeline
@@ -43,36 +44,43 @@ if __name__ == "__main__":
     diffuser.eval()
 
     if args.condition is not None:
-        condition = torch.tensor(args.condition, dtype=torch.float32, device=device).unsqueeze(0)
+        if np.sum(args.condition) == 0:
+            condition = torch.zeros(size=(args.num_samples, args.condition.__len__()), dtype=torch.float32, device=device)
+            for idx in range(args.num_samples):
+                voxel_volume = np.random.uniform(low=0.01, high=0.9)
+                surface_area = voxel_volume ** (2/3)
+                sphericity = np.random.uniform(low=0.25, high=0.9)
+                x, y, z, w, h, d = np.random.uniform(low=0.01, high=0.99, size=6)
+                condition[idx, :] = torch.tensor([voxel_volume, surface_area, sphericity, x, y, z, w, h, d], dtype=torch.float32, device=device)
+        else:
+            condition = [torch.tensor(args.condition, dtype=torch.float32, device=device).unsqueeze(0)]
     else:
         condition = None
 
+    samples = []
     with torch.no_grad():
-        sample_volume = diffuser.sample(
-            num_samples=args.num_samples, 
-            img_size=args.noise_shape,
-            condition=condition,
-            use_ddim=args.ddim,
-            steps=args.ddim_steps if args.ddim else 1000
-        ).detach()
+        for idx in tqdm(range(args.num_samples), position=0, leave=True): # sampling with a batch size of 1
+            volume = diffuser.sample(
+                num_samples=1, 
+                img_size=args.noise_shape,
+                condition=condition[idx] if condition.__len__() > 1 else condition[0],
+                use_ddim=args.ddim,
+                steps=args.ddim_steps if args.ddim else 1000
+            ).detach()
 
-        sample_volume = sample_volume.mul(torch.tensor(args.std_norm, dtype=torch.float32, device=device))
+            volume = volume.mul(torch.tensor(args.std_norm, dtype=torch.float32, device=device))
 
-        # => N, C, H, W, D
-        if args.slice_based:
-            # slice-based latent diffusion; permute depth to batch for decoding
-            sample_volume = sample_volume.permute(0, 4, 1, 2, 3)
-
-        samples = []
-        for idx in range(args.num_samples):
-            sample = sample_volume[idx, None, ...]
             if args.slice_based:
-                sample = sample.squeeze(0)
+                # slice-based latent diffusion; permute depth to batch for decoding
+                volume = volume.permute(0, 4, 1, 2, 3).squeeze(0)
+
             sample = diffuser.latent_embedder.decode(sample, emb=None) 
+            
             if args.slice_based:
                 sample = sample.unsqueeze(0)
+            
             samples.append(sample)
-
+        
         samples = torch.cat(samples, dim=0)
         if args.slice_based:
             samples = samples.permute(0, 2, 3, 4, 1)
