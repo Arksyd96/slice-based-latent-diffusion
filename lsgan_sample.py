@@ -1,6 +1,7 @@
 import torch
 from train_lsgan import LSGAN
-import matplotlib.pyplot as plt
+from tqdm import tqdm
+import numpy as np
 
 
 if "__main__" == __name__:
@@ -16,10 +17,10 @@ if "__main__" == __name__:
     model.generator.load_state_dict(torch.load('./runs/LSGAN-2023_10_24_115407_last/G_W_iter1130.pth'))
 
     model.generator = model.generator.to('cuda')
+    samples = []
+    for idx in tqdm(range(100), position=0, leave=True): 
+        sample = model.generator(torch.randn(1, 2048).to('cuda'))
+        samples.append(sample.detach().cpu().numpy())
 
-    sample = model.generator(torch.randn(8, 2048).to('cuda'))
-
-    for i in range(8):
-        plt.subplot(2, 4, i + 1)
-        plt.imshow(sample[i, 0, :, :, 48].detach().cpu().numpy(), cmap='gray')
-    plt.show()
+    samples = np.concatenate(samples, axis=0)
+    np.save('samples/lsgan/samples.npy', samples)
