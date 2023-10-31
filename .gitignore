@@ -21,6 +21,7 @@
 /data/
 /runs/
 /for_stats/
+/samples/
 
 /lightning_logs/
 

@@ -45,7 +45,7 @@ if __name__ == "__main__":
 
     if args.condition is not None:
         if np.sum(args.condition) == 0:
-            condition = torch.zeros(size=(args.num_samples, args.condition.__len__()), dtype=torch.float32, device=device)
+            condition = torch.zeros(size=(args.num_samples, 9), dtype=torch.float32, device=device)
             for idx in range(args.num_samples):
                 voxel_volume = np.random.uniform(low=0.01, high=0.9)
                 surface_area = voxel_volume ** (2/3)
@@ -63,7 +63,7 @@ if __name__ == "__main__":
             volume = diffuser.sample(
                 num_samples=1, 
                 img_size=args.noise_shape,
-                condition=condition[idx] if condition.__len__() > 1 else condition[0],
+                condition=(condition[idx, None] if condition.__len__() > 1 else condition[0]) if args.condition is not None else None,
                 use_ddim=args.ddim,
                 steps=args.ddim_steps if args.ddim else 1000
             ).detach()
@@ -74,12 +74,12 @@ if __name__ == "__main__":
                 # slice-based latent diffusion; permute depth to batch for decoding
                 volume = volume.permute(0, 4, 1, 2, 3).squeeze(0)
 
-            sample = diffuser.latent_embedder.decode(sample, emb=None) 
+            volume = diffuser.latent_embedder.decode(volume, emb=None) 
             
             if args.slice_based:
-                sample = sample.unsqueeze(0)
+                volume = volume.unsqueeze(0)
             
-            samples.append(sample)
+            samples.append(volume)
         
         samples = torch.cat(samples, dim=0)
         if args.slice_based:
