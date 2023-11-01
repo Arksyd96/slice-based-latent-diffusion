@@ -37,7 +37,7 @@ if __name__ == "__main__":
         args.target_shape[2]
     ))
 
-    for idx, instance in enumerate(tqdm(os.listdir(args.data_path)[: args.n_samples], position=0, leave=True, desc="Processing patients")):
+    for idx, instance in enumerate(tqdm(os.listdir(args.data_path)[400: 400 + args.n_samples], position=0, leave=True, desc="Processing patients")):
         # loading models
         volumes = {}
         for _, m in enumerate(args.modalities):
