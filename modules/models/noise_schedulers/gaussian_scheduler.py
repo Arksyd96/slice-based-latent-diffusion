@@ -34,7 +34,7 @@ class GaussianNoiseScheduler(BasicNoiseScheduler):
             raise NotImplementedError(f"{schedule_strategy} does is not implemented for {self.__class__}")
 
 
-        alphas = 1-betas 
+        alphas = 1 - betas 
         alphas_cumprod = torch.cumprod(alphas, dim=0)
         alphas_cumprod_prev = F.pad(alphas_cumprod[:-1], (1, 0), value = 1.)
 
