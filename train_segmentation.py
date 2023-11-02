@@ -93,23 +93,23 @@ class OutConv(nn.Module):
         return self.conv(x)
 
 class UNet(nn.Module):
-    def __init__(self, in_channels, out_channels, trilinear=False):
+    def __init__(self, in_channels, out_channels, trilinear=True):
         super(UNet, self).__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
         self.trilinear = trilinear
 
-        self.inc = (DoubleConv(in_channels, 64))
-        self.down1 = (Down(64, 128))
-        self.down2 = (Down(128, 256))
-        self.down3 = (Down(256, 512))
+        self.inc = (DoubleConv(in_channels, 32))
+        self.down1 = (Down(32, 64))
+        self.down2 = (Down(64, 128))
+        self.down3 = (Down(128, 256))
         factor = 2 if trilinear else 1
-        self.down4 = (Down(512, 1024 // factor))
-        self.up1 = (Up(1024, 512 // factor, trilinear))
-        self.up2 = (Up(512, 256 // factor, trilinear))
-        self.up3 = (Up(256, 128 // factor, trilinear))
-        self.up4 = (Up(128, 64, trilinear))
-        self.outc = (OutConv(64, out_channels))
+        self.down4 = (Down(256, 512 // factor))
+        self.up1 = (Up(512, 256 // factor, trilinear))
+        self.up2 = (Up(256, 128 // factor, trilinear))
+        self.up3 = (Up(128, 64 // factor, trilinear))
+        self.up4 = (Up(64, 32, trilinear))
+        self.outc = (OutConv(32, out_channels))
 
     def forward(self, x):
         x1 = self.inc(x)
@@ -139,7 +139,7 @@ class UNet(nn.Module):
 def dice_coeff(input, target, reduce_batch_first: bool = False, epsilon: float = 1e-6):
     # Average of Dice coefficient for all batches, or for a single mask
     assert input.size() == target.size()
-    assert input.dim() == 3 or not reduce_batch_first
+    # assert input.dim() == 3 or not reduce_batch_first
 
     sum_dim = (-1, -2) if input.dim() == 2 or not reduce_batch_first else (-1, -2, -3)
 
@@ -150,7 +150,6 @@ def dice_coeff(input, target, reduce_batch_first: bool = False, epsilon: float =
     dice = (inter + epsilon) / (sets_sum + epsilon)
     return dice.mean()
 
-
 def multiclass_dice_coeff(input, target, reduce_batch_first: bool = False, epsilon: float = 1e-6):
     # Average of Dice coefficient for all classes
     return dice_coeff(input.flatten(0, 1), target.flatten(0, 1), reduce_batch_first, epsilon)
@@ -158,7 +157,7 @@ def multiclass_dice_coeff(input, target, reduce_batch_first: bool = False, epsil
 def dice_loss(input, target, multiclass: bool = False):
     # Dice loss (objective to minimize) between 0 and 1
     fn = multiclass_dice_coeff if multiclass else dice_coeff
-    return 1 - fn(input, target, reduce_batch_first=True) 
+    return 1 - fn(input, target) 
 
 
 class LitUNet(pl.LightningModule):
@@ -171,7 +170,6 @@ class LitUNet(pl.LightningModule):
     ):
         super().__init__()
         self.lr = lr
-        self.criterion = dice_loss
         self.model = UNet(in_channels, out_channels, bilinear)
 
         self.save_hyperparameters()
@@ -180,26 +178,29 @@ class LitUNet(pl.LightningModule):
         return self.model(x)
 
     def training_step(self, batch, batch_idx):
-        x, y = batch[0].chunk(2, dim=1)
+        x, y = batch.chunk(2, dim=1)
+        x, y = x.type(torch.float32), y.type(torch.float32)
         y_hat = self.model(x)
-        loss = self.criterion(torch.sigmoid(y_hat.squeeze(1)), y.squeeze(1).float(), multiclass=False)
-        self.log('train_dice', loss)
+        loss = dice_loss(torch.sigmoid(y_hat.squeeze(1)), y.squeeze(1).float())
+        self.log('train_dice', loss, prog_bar=True, on_epoch=True, on_step=True, sync_dist=True)
         return loss
 
     def validation_step(self, batch, batch_idx):
-        x, y = batch[0].chunk(2, dim=1)
+        x, y = batch.chunk(2, dim=1)
+        x, y = x.type(torch.float32), y.type(torch.float32)
         y_hat = self.model(x)
-        loss = self.criterion(torch.sigmoid(y_hat.squeeze(1)), y.squeeze(1).float(), multiclass=False)
-        self.log('val_dice', loss)
+        loss = dice_loss(torch.sigmoid(y_hat.squeeze(1)), y.squeeze(1).float())
+        self.log('val_dice', loss, prog_bar=True, on_epoch=True, on_step=True, sync_dist=True)
 
     def test_step(self, batch, batch_idx):
-        x, y = batch[0].chunk(2, dim=1)
+        x, y = batch.chunk(2, dim=1)
+        x, y = x.type(torch.float32), y.type(torch.float32)
         y_hat = self.model(x)
-        loss = self.criterion(torch.sigmoid(y_hat.squeeze(1)), y.squeeze(1).float(), multiclass=False)
-        self.log('test_dice', loss)
+        loss = dice_loss(torch.sigmoid(y_hat.squeeze(1)), y.squeeze(1).float())
+        self.log('test_dice', loss, prog_bar=True, on_epoch=True, on_step=True, sync_dist=True)
 
     def configure_optimizers(self):
-        optimizer = torch.optim.RMSprop(self.model.parameters(), lr=self.lr, weight_decay=1e-8, momentum=0.9)
+        optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
         return optimizer
 
     def use_checkpointing(self):
@@ -213,6 +214,35 @@ if __name__ == "__main__":
     torch.set_default_dtype(torch.float32)
     torch.set_float32_matmul_precision('high')
 
+    # --------------- Data --------------------
+    train_dataset = np.load('./data/second_stage_dataset_192x192_100_train.npy')
+    train_dataset[:, 1] = np.where(train_dataset[:, 1] == -1, 0, train_dataset[:, 1])
+    val_dataset = np.load('./data/second_stage_dataset_192x192_100_eval.npy')
+    val_dataset[:, 1] = np.where(val_dataset[:, 1] == -1, 0, val_dataset[:, 1])
+
+    train_dataloader = torch.utils.data.DataLoader(
+        train_dataset,
+        batch_size=2,
+        shuffle=True,
+        num_workers=16,
+        pin_memory=True
+    )
+
+    val_dataloader = torch.utils.data.DataLoader(
+        val_dataset,
+        batch_size=2,
+        shuffle=False,
+        num_workers=16,
+        pin_memory=True
+    )
+
+    model = LitUNet(
+        in_channels=1,
+        out_channels=1,
+        bilinear=True,
+        lr=0.0001
+    )
+
     # --------------- Settings --------------------
     current_time = datetime.now().strftime("%Y_%m_%d_%H%M%S")
     save_dir = '{}/runs/UNet-{}'.format(os.path.curdir, str(current_time))
@@ -225,34 +255,14 @@ if __name__ == "__main__":
         save_dir = save_dir
     )
 
-    datamodule = BRATSDataModule(
-        data_dir        = './data/second_stage_dataset_192x192_200.npy',
-        train_ratio     = 0.5,
-        norm            = 'centered-norm', 
-        batch_size      = 2,
-        num_workers     = 6,
-        shuffle         = True,
-        # horizontal_flip = 0.5,
-        # vertical_flip   = 0.5,
-        # rotation        = (0, 90),
-        # random_crop_size = (96, 96),
-        dtype           = torch.float16,
-        include_radiomics = False
-    )
-
-    model = LitUNet(
-        in_channels=1,
-        out_channels=1,
-        bilinear=True,
-        lr=0.0001
-    )
+    # --------------- Training --------------------
 
     trainer = Trainer(
         logger      = logger,
-        # strategy    = 'ddp',
-        # devices     = 1,
-        # num_nodes   = 1,  
-        precision   = 16,
+        strategy    = 'ddp',
+        devices     = 1,
+        num_nodes   = 1,  
+        precision   = 32,
         accelerator = 'gpu',
         default_root_dir = save_dir,
         enable_checkpointing = True,
@@ -266,7 +276,7 @@ if __name__ == "__main__":
     
     
     # ---------------- Execute Training ----------------
-    trainer.fit(model, datamodule=datamodule)
+    trainer.fit(model, train_dataloader)
 
-    # ---------------- evaluate ----------------
-    trainer.test(model, datamodule=datamodule)
+    # ---------------- Evaluate ----------------
+    trainer.test(model, datamodule=val_dataloader)

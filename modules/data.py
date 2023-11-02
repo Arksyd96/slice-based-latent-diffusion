@@ -84,7 +84,7 @@ class BRATSDataset(torch.utils.data.Dataset):
 class BRATSDataModule(LightningDataModule):
     def __init__(
         self,
-        data_dir: str, # should target the a npy file generated via create_*.py scripts
+        train_dir: str, # should target the a npy file generated via create_*.py scripts
         train_ratio: float = 0.8,
         norm = 'min-max',
         batch_size: int = 32,
@@ -108,7 +108,7 @@ class BRATSDataModule(LightningDataModule):
             "dtype": dtype
         }
 
-        self.data_dir = data_dir
+        self.train_dir = train_dir
         self.norm = norm
         self.batch_size = batch_size
         self.num_workers = num_workers
@@ -121,7 +121,7 @@ class BRATSDataModule(LightningDataModule):
         pass
         
     def setup(self, stage=None):      
-        self.data = np.load(self.data_dir, allow_pickle=True)
+        self.data = np.load(self.train_dir, allow_pickle=True)
         self.data = torch.from_numpy(self.data)
 
         ##############################
@@ -135,22 +135,9 @@ class BRATSDataModule(LightningDataModule):
                 dtype=self.dataset_kwargs['dtype']
             )
 
-        # reduce number of empty slices
-        # empty_slices_map = self.data[:, 0].mean(axis=(1, 2)) <= self.data.min() + 1e-6
-        # empty_slices_num = empty_slices_map.sum()
-        # num_to_set_false = int(empty_slices_num * 0.1)
-        # print('Removing empty slices (keeping 10% | {} out of {})...'.format(num_to_set_false, empty_slices_num))
-
-        # indices = np.where(empty_slices_map == True)[0]
-        # indices_to_set_false = np.random.permutation(int(empty_slices_num))[:num_to_set_false]
-        # empty_slices_map[indices[indices_to_set_false]] = False
-
-        # # removing selected empty slices
-        # self.data = self.data[~empty_slices_map.reshape(-1)]
-
-        if self.include_radiomics:
+        # if self.include_radiomics:
             train_images, train_y, val_images, val_y = train_test_split(
-                self.data, self.radiomics, train_size=self.train_ratio, random_state=42
+                self.data, self.radiomics, train_size=self.train_ratio, random_state=42, shuffle=False
             ) if self.train_ratio < 1 else (self.data, self.radiomics, [], [])
 
             self.train_dataset = BRATSDataset(train_images, train_y, **self.dataset_kwargs)
@@ -158,7 +145,7 @@ class BRATSDataModule(LightningDataModule):
         
         else:
             train_images, val_images = train_test_split(
-                self.data, train_size=self.train_ratio, random_state=42
+                self.data, train_size=self.train_ratio, random_state=42, shuffle=False
             ) if self.train_ratio < 1 else (self.data, [])
 
             self.train_dataset = BRATSDataset(train_images, **self.dataset_kwargs)

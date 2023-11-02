@@ -37,7 +37,7 @@ if __name__ == "__main__":
         args.target_shape[2]
     ))
 
-    for idx, instance in enumerate(tqdm(os.listdir(args.data_path)[400: 400 + args.n_samples], position=0, leave=True, desc="Processing patients")):
+    for idx, instance in enumerate(tqdm(os.listdir(args.data_path)[: args.n_samples], position=0, leave=True, desc="Processing patients")):
         # loading models
         volumes = {}
         for _, m in enumerate(args.modalities):
@@ -77,7 +77,7 @@ if __name__ == "__main__":
             args.save_path, args.target_shape[0], args.target_shape[1]
         ), **{m: data[:, idx_m, ...] for idx_m, m in enumerate(args.modalities)})
     else:
-        np.save('{}/second_stage_dataset_{}x{}.npy'.format(
-            args.save_path, args.target_shape[0], args.target_shape[1]
+        np.save('{}/second_stage_dataset_{}x{}_{}.npy'.format(
+            args.save_path, args.target_shape[0], args.target_shape[1], args.n_samples
         ), data)
     print('Saved at {}'.format(args.save_path))
