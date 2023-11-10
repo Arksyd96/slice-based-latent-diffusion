@@ -27,8 +27,15 @@ from nnunetv2.training.nnUNetTrainer.nnUNetTrainer import nnUNetTrainer
 # 600 - version 50 reals
 # 800 - 0 reals
 
+# nnUNetv2_plan_and_preprocess -d 211 --verify_dataset_integrity
+# nnUNetv2_preprocess -d 211
+# nnUNetv2_train 211 3d_fullres all -tr nnUNetTrainerNoDA
+# nnUNetv2_predict -i nnUNet/nnUNet_raw/Dataset211_MRI/imagesTs/ -o nnUNet/predicts/out_ldm_100 -d 211 -tr nnUNetTrainerNoDA -c 3d_fullres -f all 
+# nnUNetv2_evaluate_folder.exe nnUNet/nnUNet_raw/Dataset211_MRI/labelsTs/ nnUNet/predicts/out_ldm_100/ -djfile nnUNet/predicts/out_ldm_100/dataset.json -pfile nnUNet/predicts/out_ldm_100/plans.json
+
+
 if __name__ == '__main__':
-    id = '801'
+    id = '211'
     name = 'MRI'
 
     if not os.path.exists('./nnUNet/nnUNet_raw/Dataset{}_{}'.format(id, name)):
@@ -40,15 +47,17 @@ if __name__ == '__main__':
 
 
     # loading data
-    baseline = np.load('./data/second_stage_dataset_192x192_100_train.npy')[:0]
-    sbldm = np.load('./samples/sbldm_1000/samples.npy')[:100]
+    d = np.load('./data/second_stage_dataset_192x192_200.npy')
+
+    baseline = d[:100]
+    sbldm = np.load('./samples/ldm/samples.npy')[:100]
 
     baseline = np.concatenate([baseline, sbldm], axis=0)
     train_volumes, train_masks = baseline[:, 0, None], baseline[:, 1, None]
     train_masks = np.where(train_masks == -1, 0, train_masks)
     print('(Sanity check) Train uniques in mask: {}'.format(np.unique(train_masks)))
 
-    test = np.load('./data/second_stage_dataset_192x192_100_eval.npy')
+    test = d[100:]
     test_volumes, test_masks = test[:, 0, None], test[:, 1, None]
     test_masks = np.where(test_masks == -1, 0, test_masks)
     print('(Sanity check) Test uniques in mask: {}'.format(np.unique(test_masks)))
