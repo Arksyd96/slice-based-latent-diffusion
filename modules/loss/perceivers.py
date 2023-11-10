@@ -1,5 +1,3 @@
-
-
 import lpips
 import torch
 

@@ -4,11 +4,6 @@ from torch import nn
 from torchvision import transforms as T
 from pytorch_lightning import LightningDataModule
 from sklearn.model_selection import train_test_split
-from tqdm import tqdm
-
-from nibabel import load
-from nibabel.processing import resample_to_output
-import os
 
 class IdentityDataset(torch.utils.data.Dataset):
     """

@@ -25,7 +25,7 @@ def compute_bounding_box(mask):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('-d', '--data-path', type=str, required=True, help='Path to the preprocessed data')
+    parser.add_argument('-d', '--data-path', type=str, required=True, help='Path to the preprocessed data (in npy format)')
     parser.add_argument('-s', '--save-path', type=str, required=True, help='Path to save the radiomics')
     args = parser.parse_args()
 
@@ -88,9 +88,6 @@ if __name__ == "__main__":
     radiomics['surface_area'] = radiomics['surface_area'] / np.max(radiomics['surface_area'])
     # surface_area_volume ratio and sphericity are already comprised between 0 and 1
 
-    # radiomics['autocorrelation'] = radiomics['autocorrelation'] / np.max(radiomics['autocorrelation'])
-    # radiomics['contrast'] = radiomics['contrast'] / np.max(radiomics['contrast'])
-    
     # saving
     np.save('{}/radiomics.npy'.format(args.save_path), np.array(radiomics))
     print('Done!')

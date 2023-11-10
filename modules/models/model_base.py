@@ -54,17 +54,6 @@ class VeryBasicModel(pl.LightningModule):
     def load_best_checkpoint(cls, path_checkpoint_dir, version=0, **kwargs):
         path_best_checkpoint = cls._get_best_checkpoint_path(path_checkpoint_dir, version)
         return cls.load_from_checkpoint(path_best_checkpoint, **kwargs)
-
-    # def load_pretrained(self, checkpoint_path, map_location=None, **kwargs):
-    #     if checkpoint_path.is_dir():
-    #         checkpoint_path = self._get_best_checkpoint_path(checkpoint_path, **kwargs)  
- 
-    #     with pl_legacy_patch():
-    #         if map_location is not None:
-    #             checkpoint = pl_load(checkpoint_path, map_location=map_location)
-    #         else:
-    #             checkpoint = pl_load(checkpoint_path, map_location=lambda storage, loc: storage)
-    #     return self.load_weights(checkpoint["state_dict"], **kwargs)
     
     def load_weights(self, pretrained_weights, strict=True, **kwargs):
         filter = kwargs.get('filter', lambda key:key in pretrained_weights)
@@ -73,9 +62,6 @@ class VeryBasicModel(pl.LightningModule):
         init_weights.update(pretrained_weights)
         self.load_state_dict(init_weights, strict=strict)
         return self 
-
-
-
 
 class BasicModel(VeryBasicModel):
     def __init__(self, 
