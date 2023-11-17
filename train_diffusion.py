@@ -11,7 +11,7 @@ from pytorch_lightning.loggers import wandb as wandb_logger
 
 from modules.models.pipelines import DiffusionPipeline
 from modules.models.estimators import UNet
-from modules.models.embedders import TimeEmbbeding
+from modules.models.embedders.time_embedder import TimeEmbbeding
 from modules.models.noise_schedulers import GaussianNoiseScheduler
 from modules.loggers import ImageGenerationLogger
 from modules.models.embedders.latent_embedders import VAE

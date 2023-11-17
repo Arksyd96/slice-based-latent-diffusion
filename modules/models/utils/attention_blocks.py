@@ -141,7 +141,7 @@ class LinearTransformer(nn.Module):
         super().__init__()
         hid_channels = num_heads*ch_per_head
         self.num_heads = num_heads
-        self.scale = ch_per_head**-0.25 # Should be 1/sqrt("queries and keys of dimension"), Note: additional sqrt needed as it follows OpenAI:  (q * scale) * (k * scale) instead of (q *k) * scale 
+        self.scale = ch_per_head ** -0.25 # Should be 1/sqrt("queries and keys of dimension"), Note: additional sqrt needed as it follows OpenAI:  (q * scale) * (k * scale) instead of (q *k) * scale 
         
         self.norm_x = get_norm_layer(norm_name, spatial_dims=spatial_dims, channels=in_channels)
         emb_dim = in_channels if emb_dim is None else emb_dim

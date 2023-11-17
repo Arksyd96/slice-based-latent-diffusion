@@ -4,8 +4,8 @@ import torch.nn as nn
 from monai.networks.blocks import UnetOutBlock
 
 from modules.models.utils.conv_blocks import BasicBlock, UpBlock, DownBlock, UnetBasicBlock, UnetResBlock, save_add, BasicDown, BasicUp, SequentialEmb
-from modules.models.embedders import TimeEmbbeding
 from modules.models.utils.attention_blocks import Attention, zero_module
+from modules.models.embedders.time_embedder import TimeEmbbeding
 
 class UNet(nn.Module):
 

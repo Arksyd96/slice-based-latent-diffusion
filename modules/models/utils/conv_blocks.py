@@ -523,7 +523,7 @@ class UpBlock(nn.Module):
         # ----------- Skip Connection ------------
         if x_skip is not None:
             if self.learnable_interpolation: # Channel of x_enc and x_skip are equal and summation is possible 
-                x = x+x_skip
+                x = x + x_skip
             else:
                 x = torch.cat((x, x_skip), dim=1)
 
