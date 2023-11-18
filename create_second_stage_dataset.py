@@ -25,9 +25,15 @@ if __name__ == "__main__":
     parser.add_argument('-b', '--binarize', action='store_true', help='Binarize the segmentation mask')
     parser.add_argument('-s', '--save-path', type=str, default='./', help='Path to save the npy file')
     parser.add_argument('-z', '--npz', action='store_true', help='Save the dataset as a npz file (Each modality is saved as a different key)')
+    parser.add_argument('-r', '--randomize', action='store_true', help='Randomize the samples')
     args = parser.parse_args()
 
     print('Loading dataset from NiFTI files... (This script requires a lot of memory)')
+
+    if args.randomize:
+        instances = np.random.choice(os.listdir(args.data_path), size=args.n_samples, replace=False)
+    else:
+        instances = os.listdir(args.data_path)[:args.n_samples]
 
     data = np.zeros(shape=(
         args.n_samples,
@@ -37,7 +43,7 @@ if __name__ == "__main__":
         args.target_shape[2]
     ))
 
-    for idx, instance in enumerate(tqdm(os.listdir(args.data_path)[: args.n_samples], position=0, leave=True, desc="Processing patients")):
+    for idx, instance in enumerate(tqdm(instances, position=0, leave=True, desc="Processing patients")):
         # loading models
         volumes = {}
         for _, m in enumerate(args.modalities):

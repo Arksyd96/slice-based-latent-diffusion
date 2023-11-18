@@ -19,10 +19,9 @@ class LatentSmoother(pl.LightningModule):
 
         self.save_hyperparameters(ignore=['latent_embedder'])
 
-    def encode_as_2d_latent(self, x: torch.Tensor):
-        # probably giving it in a batch format
+    def encode_as_2d_latent(self, x: torch.Tensor, return_individual_latents=False):
         if self.latent_embedder is not None:
-        # Embed into latent space or normalize 
+            # Embed into latent space or normalize 
             batch = []
             self.latent_embedder.eval() 
             with torch.no_grad():
@@ -31,16 +30,18 @@ class LatentSmoother(pl.LightningModule):
                     latents = self.latent_embedder.encode(volume, emb=None) # => [64x6x16x16]
                     batch.append(latents)
 
-            x = torch.stack(batch, dim=0) # => [Bx64x6x16x16]
-            x = x.permute(0, 2, 3, 4, 1) # => [Bx6x16x16x64]
+            z_i = torch.stack(batch, dim=0) # => [Bx64x6x16x16]
+            z_i = z_i.permute(0, 2, 3, 4, 1) # => [Bx6x16x16x64]
             
-            self.orig_latent_shape = x.shape[2:] # [16x16x64]
-            w = h = torch.sqrt(torch.prod(self.orig_latent_shape)).long() # sqrt(16x16x64) = 128
-            x = x.reshape(x.shape[0], self.channels, w, h) # => [Bx6x128x128]
+            self.orig_latent_shape = z_i.shape[2:] # [16x16x64]
+            w = h = np.sqrt(np.prod(self.orig_latent_shape)).astype(np.uint64) # sqrt(16x16x64) = 128
+            Z = z_i.reshape(z_i.shape[0], self.channels, w, h) # => [Bx6x128x128]
 
-        return x
+        if return_individual_latents:
+            return Z, z_i
+        return Z
 
-    def decode_as_3d_volume(self, x: torch.Tensor):
+    def decode_as_volume(self, x: torch.Tensor):
         assert self.orig_latent_shape is not None, "You need to encode the latent space first"
         
         if self.latent_embedder is not None:
@@ -60,36 +61,32 @@ class LatentSmoother(pl.LightningModule):
         
         return x
 
-    def encode(self, x):
-        x = self.encode_as_2d_latent(x)
-        z = self.encoder(x)
+    def encode(self, z):
+        z_c = self.encoder(z)
+        return z_c
+    
+    def decode(self, z_c):
+        z = self.decoder(z_c)
         return z
-    
-    def decode(self, z):
-        x_hat = self.decoder(z)
-        return x_hat
-    
-    def decode_as_volume(self, z):
-        x_hat = self.decode(z)
-        x_hat = self.decode_as_3d_volume(x_hat)
-        return x_hat
 
-    def forward(self, x):
-        z = self.encode(x)
-        x_hat = self.decode(z)
-        return x_hat, z
+    def forward(self, z):
+        z_c = self.encode(z)
+        z = self.decode(z_c)
+        return z, z_c
     
     def training_step(self, batch, batch_idx):
-        x, _ = batch
-        x_hat, z = self(x)
-        loss = self.loss(x_hat, x)
+        x, = batch # => [Bx2x128x128x64]
+        z = self.encode_as_2d_latent(x) # => [Bx6x128x128]
+        z_hat, _ = self.forward(z) # => [Bx6x128x128]
+        loss = self.loss(z_hat, z)
         self.log('train_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
         return loss
     
     def validation_step(self, batch, batch_idx):
-        x, _ = batch
-        x_hat, z = self(x)
-        loss = self.loss(x_hat, x)
+        x, = batch
+        z = self.encode_as_2d_latent(x)
+        z_hat, _ = self(z)
+        loss = self.loss(z_hat, z)
         self.log('val_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
         return loss
     
