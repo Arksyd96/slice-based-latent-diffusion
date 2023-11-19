@@ -10,8 +10,8 @@ class LatentSmoother(pl.LightningModule):
         self.channels = channels
 
         # --- architecture ---
-        self.encoder = UnetResBlock(2, channels, channels, kernel_size=3, norm_name='batch', blocks=3)
-        self.decoder = UnetResBlock(2, channels, channels, kernel_size=3, norm_name='batch', blocks=3)
+        self.encoder = UnetResBlock(2, channels, channels, kernel_size=3, norm_name='batch', blocks=2)
+        self.decoder = UnetResBlock(2, channels, channels, kernel_size=3, norm_name='batch', blocks=2)
         self.latent_embedder = latent_embedder
 
         # --- loss ---

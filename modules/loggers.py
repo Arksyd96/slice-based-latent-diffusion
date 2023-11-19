@@ -1,5 +1,3 @@
-from typing import Any
-import numpy as np
 import os
 import torch
 import pytorch_lightning as pl
