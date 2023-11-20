@@ -87,27 +87,27 @@ if __name__ == "__main__":
     )
 
     # --------------- Settings --------------------
-    # current_time = datetime.now().strftime("%Y_%m_%d_%H%M%S")
-    # save_dir = '{}/runs/LatentSmoother-{}'.format(os.path.curdir, str(current_time))
-    # os.makedirs(save_dir, exist_ok=True)
+    current_time = datetime.now().strftime("%Y_%m_%d_%H%M%S")
+    save_dir = '{}/runs/LatentSmoother-{}'.format(os.path.curdir, str(current_time))
+    os.makedirs(save_dir, exist_ok=True)
 
     # --------------- Logger --------------------
     logger = wandb_logger.WandbLogger(
         project = 'slice-based-latent-diffusion', 
         name    = 'LatentSmoother [Bx2x128x128]',
-        # save_dir = save_dir
+        save_dir = save_dir
     )
 
     # -------------- Training Initialization ---------------
     recon_callback = ReconstructionCallback()
 
-    # checkpointing = ModelCheckpoint(
-    #     dirpath=str(save_dir), # dirpath
-    #     monitor=None,
-    #     every_n_epochs=50,
-    #     save_last=True,
-    #     save_top_k=1
-    # )
+    checkpointing = ModelCheckpoint(
+        dirpath=str(save_dir), # dirpath
+        monitor=None,
+        every_n_epochs=50,
+        save_last=True,
+        save_top_k=1
+    )
 
     trainer = Trainer(
         logger      = logger,
@@ -120,10 +120,10 @@ if __name__ == "__main__":
         enable_checkpointing = True,
         log_every_n_steps = 1, 
         min_epochs = 100,
-        max_epochs = 10000,
+        max_epochs = 1000,
         num_sanity_val_steps = 0,
         # fast_dev_run = 10,
-        callbacks=[recon_callback]
+        callbacks=[recon_callback, checkpointing]
     )
     
     
