@@ -24,6 +24,7 @@
 /samples/
 /nnUNet/
 /figures/
+/wandb/
 
 /lightning_logs/
 

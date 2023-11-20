@@ -66,7 +66,7 @@ if __name__ == "__main__":
         train_ratio     = 0.95,
         norm            = 'centered-norm', 
         batch_size      = 2,
-        num_workers     = 12,
+        num_workers     = 6,
         shuffle         = True,
         # horizontal_flip = 0.5,
         # vertical_flip   = 0.5,
