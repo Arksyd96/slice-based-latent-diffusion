@@ -245,7 +245,7 @@ class BasicResBlock(nn.Module):
     def forward(self, inp):
         out = self.basic_block(inp)
         residual = self.conv_res(inp)
-        out = out+residual
+        out = out + residual
         return out
 
 

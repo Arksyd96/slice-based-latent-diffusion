@@ -10,13 +10,14 @@ from torchvision.utils import save_image
 from modules.models import BasicModel
 from modules.utils.train_utils import EMAModel
 from modules.utils.math_utils import kl_gaussians
+from modules.models.embedders.latent_smoother import LatentSmoother
 
 class DiffusionPipeline(BasicModel):
     def __init__(self, 
         noise_scheduler,
         noise_estimator,
         latent_embedder=None,
-        # mask_embedder=None,
+        latent_smoother : LatentSmoother =None,
         noise_scheduler_kwargs={},
         noise_estimator_kwargs={},
         estimator_objective = 'x_T', # 'x_T' or 'x_0'
@@ -24,7 +25,6 @@ class DiffusionPipeline(BasicModel):
         use_self_conditioning=False, 
         classifier_free_guidance_dropout=0.5, # Probability to drop condition during training, has only an effect for label-conditioned training 
         num_samples = 4,
-        do_input_centering = True, # Only for training
         clip_x0=True, # Has only an effect during traing if use_self_conditioning=True, import for inference/sampling  
         use_ema = False,
         ema_kwargs = {},
@@ -55,13 +55,12 @@ class DiffusionPipeline(BasicModel):
         #         param.requires_grad = False
         # else:
         self.latent_embedder = latent_embedder
-        # self.mask_embedder = mask_embedder
+        self.latent_smoother = latent_smoother
 
         self.estimator_objective = estimator_objective
         self.use_self_conditioning = use_self_conditioning
         self.num_samples = num_samples
         self.classifier_free_guidance_dropout = classifier_free_guidance_dropout
-        self.do_input_centering = do_input_centering
         self.estimate_variance = estimate_variance
         self.clip_x0 = clip_x0
         self.std_norm = std_norm
@@ -71,7 +70,7 @@ class DiffusionPipeline(BasicModel):
         if use_ema:
             self.ema_model = EMAModel(self.noise_estimator, **ema_kwargs)
 
-        self.save_hyperparameters(ignore=['latent_embedder'])#, 'mask_embedder'])
+        self.save_hyperparameters(ignore=['latent_embedder', 'latent_smoother'])
 
     def _step(self, batch, batch_idx, state, step):
         results = {}
@@ -79,28 +78,28 @@ class DiffusionPipeline(BasicModel):
         condition = batch[1] if len(batch) > 1 else None
 
         if self.latent_embedder is not None:
-            # Embed into latent space or normalize 
-            if self.slice_based:
-                batch = []
-                self.latent_embedder.eval() 
-                with torch.no_grad():
-                    for idx in range(x_0.shape[0]):
-                        volume = x_0[idx].permute(3, 0, 1, 2) # => [64, 2, 16, 16]
-                        latents = self.latent_embedder.encode(volume, emb=None)
-                        batch.append(latents)
+            # # Embed into latent space or normalize 
+            # if self.slice_based:
+            #     batch = []
+            #     self.latent_embedder.eval() 
+            #     with torch.no_grad():
+            #         for idx in range(x_0.shape[0]):
+            #             volume = x_0[idx].permute(3, 0, 1, 2) # => [64, 2, 16, 16]
+            #             latents = self.latent_embedder.encode(volume, emb=None)
+            #             batch.append(latents)
 
-                x_0 = torch.stack(batch, dim=0)
-                x_0 = x_0.permute(0, 2, 3, 4, 1) # => [B, 2, 16, 16, 64]
+            #     x_0 = torch.stack(batch, dim=0)
+            #     x_0 = x_0.permute(0, 2, 3, 4, 1) # => [B, 2, 16, 16, 64]
 
-            else:
-                x_0 = self.latent_embedder.encode(x_0, emb=None)
+            # else:
+            #     x_0 = self.latent_embedder.encode(x_0, emb=None)
+
+            x_0 = self.latent_smoother.encode_as_2d_latent(x_0, return_individual_latents=False) # Z
+            x_0 = self.latent_smoother.encode(x_0, emb=None)
 
 
         if self.std_norm is not None:
             x_0 = x_0.div(self.std_norm)
-
-        if self.do_input_centering:
-            x_0 = 2 * x_0 - 1 # [0, 1] -> [-1, 1]
 
         # if self.clip_x0:
         #     x_0 = torch.clamp(x_0, -1, 1)

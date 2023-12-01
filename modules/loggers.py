@@ -115,8 +115,11 @@ class ImageGenerationLogger(pl.Callback):
                     sample_img = sample_img.mul(pl_module.std_norm)
 
                 if pl_module.slice_based:
+                    # sample_img = sample_img.permute(0, 4, 1, 2, 3).squeeze(0)
+                    # sample_img = pl_module.latent_embedder.decode(sample_img, emb=None)
+                    z_hat = pl_module.latent_smoother.decode(sample_img)
+                    sample_img = pl_module.latent_smoother.decode_as_volume(z_hat) # [1x1x128x128x64]
                     sample_img = sample_img.permute(0, 4, 1, 2, 3).squeeze(0)
-                    sample_img = pl_module.latent_embedder.decode(sample_img, emb=None)
                 else:
                     if pl_module.latent_embedder is not None:
                         sample_img = pl_module.latent_embedder.decode(sample_img, emb=None)
@@ -138,6 +141,6 @@ class ImageGenerationLogger(pl.Callback):
                 wandb.log({
                     'Reconstruction examples': wandb.Image(
                         sample_img.cpu().numpy(), 
-                        caption='[{}] {}'.format(trainer.current_epoch, format_condition(condition[0].cpu().numpy()))
+                        caption='{}'.format(trainer.current_epoch)
                     )
                 })

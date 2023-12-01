@@ -34,8 +34,8 @@ class ReconstructionCallback(pl.Callback):
             with torch.no_grad():
                 batch = trainer.train_dataloader.dataset.sample(1)
                 x = batch[0].to(pl_module.device, torch.float32)
-                z = pl_module.encode_as_2d_latent(x)
-                z_hat, _ = pl_module.forward(z)
+                z = pl_module.encode_as_2d_latent(x, return_individual_latents=False)
+                z_hat, _, _ = pl_module.forward(z)
                 x_hat = pl_module.decode_as_volume(z_hat) # []
 
                 # selecting subset of the volume to display
@@ -62,7 +62,7 @@ if __name__ == "__main__":
 
     # --------------- Data --------------------
     datamodule = BRATSDataModule(
-        train_dir       = './data/second_stage_dataset_128x128_100.npy',
+        train_dir       = './data/second_stage_dataset_flair_128x128_100.npy',
         train_ratio     = 0.95,
         norm            = 'centered-norm', 
         batch_size      = 2,
@@ -77,13 +77,18 @@ if __name__ == "__main__":
     )
 
     # ------------ Initialize Latent Space  ------------
-    latent_embedder_checkpoint = './runs/first_stage-2023_08_11_230709 (best AE so far + mask)/last.ckpt'
+    latent_embedder_checkpoint = './runs/first_stage-2023_08_29_114132_vae_4_ch/epoch=999-step=225000.ckpt'
     latent_embedder = VAE.load_from_checkpoint(latent_embedder_checkpoint)
 
     # ------------ Initialize Pipeline ------------
     model = LatentSmoother(
-        channels = 8,
-        latent_embedder = latent_embedder
+        channels=4,
+        latent_embedder=latent_embedder,
+        spatial_dims=2,
+        hid_chs=[128, 256],
+        kernel_sizes=[3, 3],
+        strides=[1, 1],
+        # dropout=0.1
     )
 
     # --------------- Settings --------------------
@@ -94,12 +99,12 @@ if __name__ == "__main__":
     # --------------- Logger --------------------
     logger = wandb_logger.WandbLogger(
         project = 'slice-based-latent-diffusion', 
-        name    = 'LatentSmoother [Bx2x128x128]',
+        name    = 'LatentSmoother VAE [Bx2x128x128]',
         save_dir = save_dir
     )
 
     # -------------- Training Initialization ---------------
-    recon_callback = ReconstructionCallback()
+    recon_callback = ReconstructionCallback(log_every_n_epochs=1)
 
     checkpointing = ModelCheckpoint(
         dirpath=str(save_dir), # dirpath
@@ -123,7 +128,7 @@ if __name__ == "__main__":
         max_epochs = 1000,
         num_sanity_val_steps = 0,
         # fast_dev_run = 10,
-        callbacks=[recon_callback, checkpointing]
+        callbacks=[recon_callback, recon_callback]
     )
     
     

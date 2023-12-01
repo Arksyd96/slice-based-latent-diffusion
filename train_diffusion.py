@@ -15,6 +15,7 @@ from modules.models.embedders.time_embedder import TimeEmbbeding
 from modules.models.noise_schedulers import GaussianNoiseScheduler
 from modules.loggers import ImageGenerationLogger
 from modules.models.embedders.latent_embedders import VAE
+from modules.models.embedders.latent_smoother import LatentSmoother
 from modules.models.embedders.cond_embedders import ConditionMLP
 
 import torch.multiprocessing
@@ -31,29 +32,29 @@ if __name__ == "__main__":
 
     # --------------- Settings --------------------
     current_time = datetime.now().strftime("%Y_%m_%d_%H%M%S")
-    save_dir = '{}/runs/DDPM-{}'.format(os.path.curdir, str(current_time))
+    save_dir = '{}/runs/SBLDM-Smoother-{}'.format(os.path.curdir, str(current_time))
     os.makedirs(save_dir, exist_ok=True)
 
     # --------------- Logger --------------------
     logger = wandb_logger.WandbLogger(
-        project = 'comparative-models', 
-        name    = 'DDPM (3D + Mask)',
+        project = 'slice-based-latent-diffusion', 
+        name    = 'SBLDM With latent smoother',
         save_dir = save_dir
     )
 
     datamodule = BRATSDataModule(
-        data_dir        = './data/second_stage_dataset_192x192_100.npy',
+        train_dir       = './data/second_stage_dataset_flair_128x128_100.npy',
         train_ratio     = 1.0,
         norm            = 'centered-norm', 
         batch_size      = 2,
         num_workers     = 16,
         shuffle         = True,
-        # horizontal_flip = 0.5,
-        # vertical_flip   = 0.5,
+        horizontal_flip = 0.5,
+        vertical_flip   = 0.5,
         # rotation        = (0, 90),
         # random_crop_size = (96, 96),
         dtype           = torch.float32,
-        include_radiomics = False
+        include_radiomics = False,
     )
 
 
@@ -74,9 +75,9 @@ if __name__ == "__main__":
 
     noise_estimator = UNet
     noise_estimator_kwargs = {
-        'in_ch': 2,
-        'out_ch': 2,  
-        'spatial_dims': 3,
+        'in_ch': 4,
+        'out_ch': 4,  
+        'spatial_dims': 2,
         'hid_chs': [64, 128, 256, 512],
         'kernel_sizes': [3, 3, 3, 3],
         'strides': [1, 2, 2, 2],
@@ -100,8 +101,12 @@ if __name__ == "__main__":
     }
     
     # ------------ Initialize Latent Space  ------------
-    latent_embedder_checkpoint = './runs/SBLDM-first-stage-2023_10_23_154159 (VAE 2D 2x24x24)/last.ckpt'
-    # latent_embedder = VAE.load_from_checkpoint(latent_embedder_checkpoint)
+    # latent_embedder_checkpoint = './runs/SBLDM-first-stage-2023_10_23_154159 (VAE 2D 2x24x24)/last.ckpt'
+    latent_embedder_checkpoint = './runs/first_stage-2023_08_29_114132_vae_4_ch/epoch=999-step=225000.ckpt'
+    latent_embedder = VAE.load_from_checkpoint(latent_embedder_checkpoint)
+
+    latent_smoother_checkpoint = './runs/LatentSmoother-2023_11_22_113134/epoch=367-step=17664.ckpt'
+    latent_smoother = LatentSmoother.load_from_checkpoint(latent_smoother_checkpoint, latent_embedder=latent_embedder)
 
     # ------------ Initialize Pipeline ------------
 
@@ -116,15 +121,15 @@ if __name__ == "__main__":
         noise_estimator_kwargs=noise_estimator_kwargs,
         noise_scheduler=noise_scheduler, 
         noise_scheduler_kwargs = noise_scheduler_kwargs,
-        latent_embedder=None,
+        latent_embedder=latent_embedder,
+        latent_smoother=latent_smoother,
         estimator_objective='x_T',
         estimate_variance=False, 
         use_self_conditioning=False, 
         use_ema=False,
         classifier_free_guidance_dropout=0.0, # Disable during training by setting to 0
-        do_input_centering=False,
         clip_x0=False,
-        slice_based=False,
+        slice_based=True,
         std_norm=None
     )
 
@@ -140,7 +145,8 @@ if __name__ == "__main__":
 
     image_logger = ImageGenerationLogger(
         # noise_shape=(6, 24, 24, 96),
-        noise_shape=(2, 192, 192, 96),
+        # noise_shape=(2, 192, 192, 96),
+        noise_shape=(4, 128, 128),
         save_dir=str(save_dir),
         save_every_n_epochs=20,
         save=True
@@ -148,9 +154,9 @@ if __name__ == "__main__":
 
     trainer = Trainer(
         logger      = logger,
-        strategy    = 'ddp_find_unused_parameters_true',
-        devices     = 4,
-        num_nodes   = 1,  
+        # strategy    = 'ddp_find_unused_parameters_true',
+        # devices     = 4,
+        # num_nodes   = 1,  
         precision   = 32,
         accelerator = 'gpu',
         default_root_dir = save_dir,
